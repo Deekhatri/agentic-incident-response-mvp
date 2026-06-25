@@ -1,0 +1,406 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from 'react';
+import { 
+  ArrowLeft, 
+  Layers, 
+  Activity, 
+  Clock, 
+  Compass, 
+  ShieldAlert, 
+  Bell, 
+  ClipboardList, 
+  FileText, 
+  Cpu,
+  Search,
+  CheckCircle2,
+  Terminal,
+  AlertTriangle
+} from 'lucide-react';
+import { Incident, Alert, TimelineEvent as TimelineEventType } from '../types';
+import { SeverityBadge } from './SeverityBadge';
+import { StatusBadge } from './StatusBadge';
+import { ConfidenceScore } from './ConfidenceScore';
+import { EvidenceItem } from './EvidenceItem';
+import { ActionProposal } from './ActionProposal';
+import { ApprovalControls } from './ApprovalControls';
+import { TimelineEvent } from './TimelineEvent';
+import { PostmortemSection } from './PostmortemSection';
+
+interface IncidentDetailProps {
+  incident: Incident;
+  alerts: Alert[];
+  timelineEvents: TimelineEventType[];
+  onBack: () => void;
+  onApproveRemediation: (id: string) => void;
+  onRejectRemediation: (id: string, reason: string) => void;
+  onGeneratePostmortem: (id: string) => void;
+}
+
+export const IncidentDetail: React.FC<IncidentDetailProps> = ({
+  incident,
+  alerts,
+  timelineEvents,
+  onBack,
+  onApproveRemediation,
+  onRejectRemediation,
+  onGeneratePostmortem
+}) => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'alerts' | 'timeline' | 'postmortem'>('overview');
+  const [alertSearch, setAlertSearch] = useState('');
+
+  // Filter alerts associated with this incident's service
+  const associatedAlerts = alerts.filter(alt => 
+    alt.service === incident.service &&
+    alt.message.toLowerCase().includes(alertSearch.toLowerCase())
+  );
+
+  const getSystemHealthBadge = () => {
+    switch (incident.systemHealth) {
+      case 'Healthy':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-semibold bg-green-50 text-green-700 border border-green-200">
+            HEALTHY
+          </span>
+        );
+      case 'Degraded':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-semibold bg-red-50 text-red-700 border border-red-200 animate-pulse">
+            DEGRADED
+          </span>
+        );
+      case 'Recovering':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            RECOVERING
+          </span>
+        );
+    }
+  };
+
+  const tabs = [
+    { id: 'overview', name: 'Overview Analysis', icon: Cpu },
+    { id: 'evidence', name: 'Supporting Logs', icon: Terminal },
+    { id: 'alerts', name: `Aggregated Alerts (${associatedAlerts.length})`, icon: Bell },
+    { id: 'timeline', name: 'Incident Timeline', icon: Clock },
+    { id: 'postmortem', name: 'Postmortem Review', icon: FileText }
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Back Button and Header Actions */}
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-700 hover:text-zinc-900 rounded text-xs font-mono font-medium transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to List
+        </button>
+        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400">
+          <span>Active Session</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+        </div>
+      </div>
+
+      {/* Hero Header Card */}
+      <div className="bg-zinc-950 text-zinc-100 rounded-lg p-6 border border-zinc-900">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[10px] text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">
+                INCIDENT ID: {incident.id}
+              </span>
+              <SeverityBadge severity={incident.severity} />
+              <StatusBadge status={incident.status} />
+              {getSystemHealthBadge()}
+            </div>
+            <h1 className="font-display text-lg md:text-xl font-bold tracking-tight text-white leading-snug">
+              {incident.title}
+            </h1>
+            <p className="text-xs text-zinc-400 font-sans leading-relaxed">
+              Target microservice: <code className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 text-zinc-200 font-mono text-xxs rounded">{incident.service}</code> • Cluster Environment: <span className="font-mono text-zinc-300 font-semibold">{incident.environment}</span>
+            </p>
+          </div>
+
+          {/* Quick stats panel */}
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-md p-4 grid grid-cols-2 gap-4 shrink-0 w-full md:w-auto font-mono text-xs">
+            <div>
+              <span className="text-zinc-500 block text-[10px] uppercase">Telemetry Grouped</span>
+              <span className="text-white font-bold text-sm block mt-0.5">{incident.alertCount} alerts</span>
+            </div>
+            <div>
+              <span className="text-zinc-500 block text-[10px] uppercase">Noise Suppressed</span>
+              <span className="text-emerald-400 font-bold text-sm block mt-0.5">95.8% ratio</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="border-b border-zinc-200 flex overflow-x-auto gap-1">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-2 px-4 py-2.5 border-b-2 font-mono text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === tab.id
+                  ? 'border-zinc-900 text-zinc-950 bg-white'
+                  : 'border-transparent text-zinc-500 hover:text-zinc-800'
+              }`}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              {tab.name}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab Contents */}
+      <div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-xxs min-h-[300px]">
+        
+        {/* TAB 1: OVERVIEW */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Left Column (RCA & Evidence) */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* Agent-generated Summary block */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
+                    Agent-Generated Summary
+                  </h3>
+                  <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-lg text-sm text-zinc-700 leading-relaxed font-sans">
+                    At <span className="font-mono font-semibold">14:32</span>, system deployments recorded a roll-out of version <span className="font-mono bg-zinc-100 px-1 py-0.5 rounded border border-zinc-200 text-xs">v2.4.8</span> of the <code className="font-mono text-xs bg-zinc-100 px-1 rounded">checkout-api</code>. Following this, API latencies spike and HTTP 5xx error budgets burn out. ResolveOps core telemetry engine correlated 24 related alerts into this incident, pinpointing a failure to load essential configuration keys on service initialization.
+                  </div>
+                </div>
+
+                {/* Root cause hypothesis */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
+                    Root-Cause Hypothesis
+                  </h3>
+                  <div className="p-4 border border-zinc-200 rounded-lg space-y-3">
+                    <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+                      <span className="text-sm font-sans font-semibold text-zinc-900">Probable Cause</span>
+                      <ConfidenceScore score={incident.confidence} size="md" />
+                    </div>
+                    <p className="text-sm font-mono text-zinc-700 bg-zinc-50 p-3 border border-zinc-200 rounded-md">
+                      {incident.probableCause}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Supporting evidence list */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
+                    Supporting Diagnostic Evidence
+                  </h3>
+                  <div className="space-y-2">
+                    {incident.supportingEvidence.map((ev, index) => (
+                      <EvidenceItem key={index} evidence={ev} index={index} />
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Right Column (Remediation Actions & Approvals) */}
+              <div className="space-y-6">
+                
+                <div className="space-y-2">
+                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
+                    Remediation & Healing Plan
+                  </h3>
+                  <ActionProposal
+                    proposedRemediation={incident.proposedRemediation}
+                    remediationStatus={incident.remediationStatus}
+                    remediationResult={incident.remediationResult}
+                    blastRadius={incident.blastRadius}
+                    alternativeHypothesis={incident.alternativeHypothesis}
+                  />
+                </div>
+
+                {/* Approval Control panel */}
+                <ApprovalControls
+                  status={incident.remediationStatus}
+                  rejectionReason={incident.rejectionReason}
+                  onApprove={() => onApproveRemediation(incident.id)}
+                  onReject={(reason) => onRejectRemediation(incident.id, reason)}
+                />
+
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: DETAILED SUPPORTING LOGS */}
+        {activeTab === 'evidence' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-900">Cluster Pod Stdout / Event stream</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Isolated logs associated with service failures on staging-node-04.</p>
+              </div>
+              <span className="text-xxs font-mono bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded text-zinc-600">
+                CONTAINER ID: cri://dcb348911
+              </span>
+            </div>
+
+            {/* Container logs display */}
+            <div className="bg-zinc-950 rounded-lg p-4 font-mono text-xs text-zinc-300 leading-relaxed overflow-x-auto border border-zinc-900 shadow-md">
+              <div className="space-y-1">
+                <p className="text-zinc-500">[14:32:01] INFO  cd-pipeline: Initiating deployment of replica-set checkout-api:v2.4.8 ...</p>
+                <p className="text-zinc-500">[14:32:15] INFO  kubelet: Pulling image "gcr.io/resolveops-sandbox/checkout-api:v2.4.8"</p>
+                <p className="text-zinc-500">[14:32:45] INFO  kubelet: Pod checkout-api-7db6cf5b8d-abcde launched successfully on node staging-node-04.</p>
+                <p className="text-red-400 font-semibold">[14:33:02] FATAL checkout-api: [CONFIG VALIDATION ERROR] Missing critical environment dependency.</p>
+                <p className="text-red-500 font-bold">[14:33:02] FATAL checkout-api: "FATAL: Config key PAYMENT_GATEWAY_URL not found in process.env" - system must crash.</p>
+                <p className="text-red-400 font-semibold">[14:33:02] INFO  checkout-api: Process exiting with code 1.</p>
+                <p className="text-zinc-500">[14:33:15] WARN  kubelet: Pod checkout-api-7db6cf5b8d-abcde exited unexpectedly. Restarting in 10s...</p>
+                <p className="text-zinc-500">[14:33:30] INFO  kubelet: Pod checkout-api-7db6cf5b8d-abcde restarted.</p>
+                <p className="text-red-400 font-semibold">[14:33:31] FATAL checkout-api: [CONFIG VALIDATION ERROR] Missing critical environment dependency.</p>
+                <p className="text-red-500 font-bold">[14:33:31] FATAL checkout-api: "FATAL: Config key PAYMENT_GATEWAY_URL not found in process.env" - system must crash.</p>
+                <p className="text-zinc-500">[14:33:31] WARN  kubelet: Pod checkout-api-7db6cf5b8d-abcde entered CrashLoopBackOff.</p>
+                <p className="text-zinc-500">[14:34:02] INFO  kubelet: Pod checkout-api-7db6cf5b8d-fghij launched.</p>
+                <p className="text-red-500 font-bold">[14:34:03] FATAL checkout-api: "FATAL: Config key PAYMENT_GATEWAY_URL not found in process.env" - system must crash.</p>
+                <p className="text-zinc-500">[14:34:03] WARN  kubelet: Pod checkout-api-7db6cf5b8d-fghij entered CrashLoopBackOff.</p>
+                <p className="text-amber-400 font-semibold">[14:35:12] ALERT nginx-ingress: [HTTP 502 Bad Gateway] Upstream server failed on path /api/v1/checkout/charge</p>
+                <p className="text-amber-400 font-semibold">[14:35:15] ALERT prometheus-operator: [ALERT_STORM] checkout-api 5xx rate has hit 14.5% - threshold: 1.0%</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: AGGREGATED INCIDENT ALERTS */}
+        {activeTab === 'alerts' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-100 pb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-900">Aggregated Active Alert Storm</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">These telemetry alerts were correlated and grouped together by the Agent algorithm.</p>
+              </div>
+
+              {/* Alert search bar */}
+              <div className="relative w-full sm:w-64">
+                <input
+                  type="text"
+                  placeholder="Query aggregated alerts..."
+                  value={alertSearch}
+                  onChange={(e) => setAlertSearch(e.target.value)}
+                  className="w-full text-xs font-sans p-2 pl-8 bg-zinc-50 border border-zinc-300 rounded-md outline-hidden text-zinc-800"
+                />
+                <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-2.5" />
+              </div>
+            </div>
+
+            {/* Alerts Table */}
+            <div className="overflow-x-auto border border-zinc-200 rounded-lg">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-zinc-50 border-b border-zinc-200 text-zinc-500 font-mono">
+                    <th className="py-2.5 px-3 font-bold">SOURCE</th>
+                    <th className="py-2.5 px-3 font-bold">SEVERITY</th>
+                    <th className="py-2.5 px-3 font-bold">ALERT MESSAGE</th>
+                    <th className="py-2.5 px-3 font-bold">TIMESTAMP</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-200/60 font-sans">
+                  {associatedAlerts.map((alt) => (
+                    <tr key={alt.id} className="hover:bg-zinc-50/40">
+                      <td className="py-2.5 px-3 font-mono font-semibold text-zinc-800">
+                        {alt.source}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={`inline-block px-1.5 py-0.25 rounded text-[10px] font-mono font-medium ${
+                          alt.severity === 'Critical' 
+                            ? 'bg-red-50 text-red-700 border border-red-200' 
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {alt.severity}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-zinc-700 leading-relaxed max-w-sm md:max-w-md truncate" title={alt.message}>
+                        {alt.message}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-zinc-400 text-xxs">
+                        {alt.timestamp.includes('T') ? new Date(alt.timestamp).toLocaleTimeString() : alt.timestamp}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: INCIDENT TIMELINE EVENT CHRONOLOGY */}
+        {activeTab === 'timeline' && (
+          <div className="max-w-2xl mx-auto py-4">
+            <div className="relative border-l-0 border-zinc-200 pl-0">
+              {timelineEvents.map((event, index) => (
+                <TimelineEvent
+                  key={event.id}
+                  event={event}
+                  isLast={index === timelineEvents.length - 1}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: POSTMORTEM */}
+        {activeTab === 'postmortem' && (
+          <div className="space-y-6">
+            {incident.remediationStatus !== 'Completed' ? (
+              <div className="p-8 text-center bg-zinc-50 rounded-lg border border-zinc-200 space-y-3.5 max-w-lg mx-auto">
+                <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-900">Postmortem Incomplete</h4>
+                  <p className="text-xs text-zinc-500 leading-relaxed mt-1">
+                    An operations postmortem summary can only be generated once the remediation proposal is fully executed and the microservice cluster health is restored.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {!incident.hasPostmortem ? (
+                  <div className="p-8 text-center bg-zinc-50 rounded-lg border border-zinc-200 space-y-4 max-w-lg mx-auto">
+                    <FileText className="w-8 h-8 text-zinc-400 mx-auto" />
+                    <div>
+                      <h4 className="text-sm font-semibold text-zinc-900 font-sans">Generate Incident Postmortem</h4>
+                      <p className="text-xs text-zinc-500 leading-relaxed mt-1">
+                        Use the ResolveOps Agent to synthesize audit records, telemetry timestamps, and execution reports into an operations review template.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onGeneratePostmortem(incident.id)}
+                      className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-xs font-mono font-semibold transition-colors cursor-pointer"
+                    >
+                      Generate Postmortem Report
+                    </button>
+                  </div>
+                ) : (
+                  incident.postmortem && (
+                    <PostmortemSection postmortem={incident.postmortem} />
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+};

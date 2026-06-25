@@ -1,0 +1,6 @@
+{
+  "name": "ResolveOps",
+  "description": "An agentic incident-response MVP for engineering teams featuring noise reduction, automated root-cause analysis, and human-in-the-loop remediation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
