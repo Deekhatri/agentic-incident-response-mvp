@@ -10,6 +10,7 @@ import { OverviewDashboard } from './components/OverviewDashboard';
 import { IncidentsList } from './components/IncidentsList';
 import { AuditLogView } from './components/AuditLogView';
 import { IncidentDetail } from './components/IncidentDetail';
+import { supabase } from './lib/supabase';
 import { 
   Incident, 
   Alert, 
@@ -33,7 +34,10 @@ import {
 } from './mockData';
 
 export default function App() {
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(() => {
+    return sessionStorage.getItem('resolveops_demo_user');
+  });
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [activeScreen, setActiveScreen] = useState<'dashboard' | 'incidents' | 'audit' | 'incident-detail'>('dashboard');
   const [activeIncidentId, setActiveIncidentId] = useState<string | null>(null);
 
@@ -125,6 +129,45 @@ export default function App() {
 
   useEffect(() => {
     initializeDemoState();
+
+    async function initSession() {
+      if (supabase) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            setUserEmail(session.user.email ?? null);
+            sessionStorage.removeItem('resolveops_demo_user');
+          }
+        } catch (err) {
+          console.error('Error fetching Supabase session:', err);
+        }
+      }
+      setIsLoadingSession(false);
+    }
+
+    initSession();
+
+    let subscription: { unsubscribe: () => void } | null = null;
+    if (supabase) {
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          setUserEmail(session.user.email ?? null);
+          sessionStorage.removeItem('resolveops_demo_user');
+        } else {
+          const demoUser = sessionStorage.getItem('resolveops_demo_user');
+          if (!demoUser) {
+            setUserEmail(null);
+          }
+        }
+      });
+      subscription = data.subscription;
+    }
+
+    return () => {
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
   }, []);
 
   // Determine system cluster health from active incidents
@@ -148,7 +191,15 @@ export default function App() {
     setActiveScreen('dashboard');
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.error('Error signing out of Supabase:', err);
+      }
+    }
+    sessionStorage.removeItem('resolveops_demo_user');
     setUserEmail(null);
     setActiveIncidentId(null);
     setActiveScreen('dashboard');
@@ -525,6 +576,17 @@ export default function App() {
   };
 
   // Render authentic authentication screen if user isn't authenticated yet
+  if (isLoadingSession) {
+    return (
+      <div className="min-h-screen bg-zinc-50 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900"></div>
+          <span className="text-xs font-mono text-zinc-500">Retrieving active session...</span>
+        </div>
+      </div>
+    );
+  }
+
   if (!userEmail) {
     return <SignIn onSignIn={handleSignIn} />;
   }

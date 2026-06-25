@@ -27,6 +27,7 @@ import { SeverityBadge } from './SeverityBadge';
 import { StatusBadge } from './StatusBadge';
 import { ConfidenceScore } from './ConfidenceScore';
 import { formatReadableTimestamp } from '../mockData';
+import { SupabaseConnectionStatus } from './SupabaseConnectionStatus';
 
 interface OverviewDashboardProps {
   incidents: Incident[];
@@ -387,6 +388,9 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Supabase Connection Status Widget */}
+          <SupabaseConnectionStatus />
 
           {/* Recent Agent Activity Logs Feed */}
           <div className="bg-white border border-zinc-200 p-5 rounded-lg shadow-xs space-y-4">
