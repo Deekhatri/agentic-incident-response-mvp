@@ -30,7 +30,7 @@ import { ActionProposal } from './ActionProposal';
 import { ApprovalControls } from './ApprovalControls';
 import { TimelineEvent } from './TimelineEvent';
 import { PostmortemSection } from './PostmortemSection';
-import { listIncidentAlerts } from '../lib/supabase';
+import { listIncidentAlerts, listAuditEvents, mapRowToTimelineEvent } from '../lib/supabase';
 
 interface IncidentDetailProps {
   incident: Incident;
@@ -60,6 +60,10 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
   const [alertsError, setAlertsError] = useState<string | null>(null);
 
+  const [dbAuditEvents, setDbAuditEvents] = useState<TimelineEventType[]>([]);
+  const [isLoadingAuditEvents, setIsLoadingAuditEvents] = useState(false);
+  const [auditEventsError, setAuditEventsError] = useState<string | null>(null);
+
   const loadSupabaseAlerts = async () => {
     if (isDemoMode) return;
     setIsLoadingAlerts(true);
@@ -76,11 +80,30 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
     }
   };
 
+  const loadSupabaseAuditEvents = async () => {
+    if (isDemoMode) return;
+    setIsLoadingAuditEvents(true);
+    setAuditEventsError(null);
+    try {
+      console.log('[IncidentDetail] Fetching Supabase audit events for incident ID:', incident.id);
+      const fetchedAuditEvents = await listAuditEvents(incident.id);
+      const mappedEvents = fetchedAuditEvents.map(mapRowToTimelineEvent);
+      setDbAuditEvents(mappedEvents);
+    } catch (err: any) {
+      console.error('[IncidentDetail] Error loading audit events from Supabase:', err);
+      setAuditEventsError(err.message || 'Failed to load database audit events.');
+    } finally {
+      setIsLoadingAuditEvents(false);
+    }
+  };
+
   useEffect(() => {
     loadSupabaseAlerts();
+    loadSupabaseAuditEvents();
   }, [incident.id, isDemoMode]);
 
   const displayAlerts = isDemoMode ? alerts : dbAlerts;
+  const displayTimelineEvents = isDemoMode ? timelineEvents : dbAuditEvents;
 
   // Filter alerts associated with this incident's service
   const associatedAlerts = displayAlerts.filter(alt => {
@@ -408,15 +431,45 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
         {/* TAB 4: INCIDENT TIMELINE EVENT CHRONOLOGY */}
         {activeTab === 'timeline' && (
           <div className="max-w-2xl mx-auto py-4">
-            <div className="relative border-l-0 border-zinc-200 pl-0">
-              {timelineEvents.map((event, index) => (
-                <TimelineEvent
-                  key={event.id}
-                  event={event}
-                  isLast={index === timelineEvents.length - 1}
-                />
-              ))}
-            </div>
+            {isLoadingAuditEvents ? (
+              <div className="flex flex-col items-center justify-center p-12 border border-zinc-200 rounded-lg bg-white space-y-3">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-900"></div>
+                <p className="text-xs text-zinc-500 font-sans">Querying operational audit trail from the database...</p>
+              </div>
+            ) : auditEventsError ? (
+              <div className="p-6 border border-red-200 rounded-lg bg-red-50/50 flex flex-col items-center justify-center text-center space-y-3">
+                <div className="text-red-500">
+                  <ShieldAlert className="w-8 h-8 mx-auto" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-mono font-bold uppercase text-red-800">Timeline Query Failed</h4>
+                  <p className="text-xs text-zinc-600 mt-1 font-sans">{auditEventsError}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadSupabaseAuditEvents}
+                  className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-xs font-mono font-medium transition-colors cursor-pointer"
+                >
+                  Retry Query
+                </button>
+              </div>
+            ) : displayTimelineEvents.length === 0 ? (
+              <div className="p-12 border border-zinc-200 rounded-lg bg-zinc-50/50 text-center space-y-2">
+                <ClipboardList className="w-8 h-8 text-zinc-300 mx-auto" />
+                <h4 className="text-xs font-mono font-bold uppercase text-zinc-800">No Events Logged</h4>
+                <p className="text-xs text-zinc-500 font-sans">No audit events have been logged for this incident yet.</p>
+              </div>
+            ) : (
+              <div className="relative border-l-0 border-zinc-200 pl-0">
+                {displayTimelineEvents.map((event, index) => (
+                  <TimelineEvent
+                    key={event.id}
+                    event={event}
+                    isLast={index === displayTimelineEvents.length - 1}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 

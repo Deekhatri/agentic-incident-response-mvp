@@ -11,7 +11,7 @@ import { OverviewDashboard } from './components/OverviewDashboard';
 import { IncidentsList } from './components/IncidentsList';
 import { AuditLogView } from './components/AuditLogView';
 import { IncidentDetail } from './components/IncidentDetail';
-import { supabase, listIncidents, createTestIncident, getIncident, createIncidentAlerts, deleteIncident } from './lib/supabase';
+import { supabase, listIncidents, createTestIncident, getIncident, createIncidentAlerts, deleteIncident, createAuditEvents } from './lib/supabase';
 import { 
   Incident, 
   Alert, 
@@ -600,6 +600,9 @@ export default function App() {
         console.log('[App] Inserting 24 alerts in Supabase for incident_id:', newIncident.id);
         await createIncidentAlerts(user.id, newIncident.id);
 
+        console.log('[App] Inserting 6 audit events in Supabase for incident_id:', newIncident.id);
+        await createAuditEvents(user.id, newIncident.id);
+
         console.log('[App] Refreshing incident list after successful insertion...');
         // Refresh incident list
         await fetchSupabaseIncidents();
@@ -609,15 +612,15 @@ export default function App() {
         setActiveIncidentId(newIncident.id);
         setActiveScreen('incident-detail');
       } catch (err: any) {
-        console.error('Failed to generate test incident or alerts in Supabase:', err);
-        // If the incident was created but alert insertion failed, delete the incident so no incomplete records are left behind
+        console.error('Failed to generate test incident, alerts, or audit events in Supabase:', err);
+        // If the incident was created but alert or audit insertion failed, delete the incident so no incomplete records are left behind
         if (createdIncidentId) {
-          console.log('[App] Alert generation failed. Rolling back created incident ID:', createdIncidentId);
+          console.log('[App] Operation failed. Rolling back created incident ID:', createdIncidentId);
           try {
             await deleteIncident(createdIncidentId);
             console.log('[App] Rollback deletion complete.');
           } catch (deleteErr) {
-            console.error('[App] Failed to rollback/delete incident after alert insertion failure:', deleteErr);
+            console.error('[App] Failed to rollback/delete incident after insertion failure:', deleteErr);
           }
         }
         setDbError(err.message || 'Error occurred during persistent incident creation.');

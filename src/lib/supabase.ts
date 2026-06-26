@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Incident, Alert } from '../types';
+import { Incident, Alert, TimelineEvent, TimelineEventType } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -288,4 +288,139 @@ export async function listIncidentAlerts(incidentId: string): Promise<Alert[]> {
     message: row.message || '',
     service: 'checkout-api'
   }));
+}
+
+export function mapRowToTimelineEvent(row: any): TimelineEvent {
+  let type: TimelineEventType = 'System';
+  if (row.actor_type === 'Agent') {
+    type = 'Agent';
+  } else if (row.actor_type === 'Human') {
+    type = 'Human';
+  } else if (row.actor_type === 'Alert') {
+    type = 'Alert';
+  }
+
+  const title = row.event_type || `${row.actor_name || row.actor_type} Action`;
+  const description = row.description || '';
+  const fullDescription = row.result 
+    ? `${description} (Result: ${row.result})` 
+    : description;
+
+  return {
+    id: String(row.id),
+    timestamp: row.created_at || new Date().toISOString(),
+    type,
+    title,
+    description: fullDescription
+  };
+}
+
+export async function createAuditEvents(userId: string, incidentId: string): Promise<any[]> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const now = new Date();
+  
+  const events = [
+    {
+      user_id: userId,
+      incident_id: incidentId,
+      actor_type: 'System',
+      actor_name: 'System',
+      event_type: 'Incident created',
+      description: 'ResolveOps ingested service health check failures for checkout-api and initialized an incident investigation.',
+      result: `Incident initialized with ID: ${incidentId}`,
+      created_at: new Date(now.getTime() - 5 * 60 * 1000).toISOString()
+    },
+    {
+      user_id: userId,
+      incident_id: incidentId,
+      actor_type: 'System',
+      actor_name: 'System',
+      event_type: '24 alerts received',
+      description: 'Ingested 24 high-priority cluster alerts including HTTP 5xx errors, CrashLoopBackOff states, and probe failures.',
+      result: '24 raw telemetry events buffered.',
+      created_at: new Date(now.getTime() - 4 * 60 * 1000).toISOString()
+    },
+    {
+      user_id: userId,
+      incident_id: incidentId,
+      actor_type: 'Agent',
+      actor_name: 'Correlation Engine',
+      event_type: 'Alerts grouped into one incident',
+      description: 'Correlated 24 active cluster telemetry alerts into a single actionable incident record, suppressing 95.8% monitoring noise.',
+      result: 'Noise reduction verified.',
+      created_at: new Date(now.getTime() - 3 * 60 * 1000).toISOString()
+    },
+    {
+      user_id: userId,
+      incident_id: incidentId,
+      actor_type: 'Agent',
+      actor_name: 'Triage Agent',
+      event_type: 'Root-cause analysis started',
+      description: 'Initiated deep-dive analysis of checkout-api log trails, infrastructure configuration keys, and tracer spans.',
+      result: 'Diagnostic scans running.',
+      created_at: new Date(now.getTime() - 2 * 60 * 1000).toISOString()
+    },
+    {
+      user_id: userId,
+      incident_id: incidentId,
+      actor_type: 'Agent',
+      actor_name: 'Root Cause Agent',
+      event_type: 'Root-cause hypothesis generated',
+      description: 'Identified missing PAYMENT_GATEWAY_URL configuration parameter following recent deployment v2.4.8.',
+      result: 'Hypothesis established with 92% confidence.',
+      created_at: new Date(now.getTime() - 1 * 60 * 1000).toISOString()
+    },
+    {
+      user_id: userId,
+      incident_id: incidentId,
+      actor_type: 'Agent',
+      actor_name: 'Root Cause Agent',
+      event_type: 'Remediation proposal created',
+      description: 'Proposed rolling restart of checkout-api microservice with restored environment variables.',
+      result: 'Remediation proposal generated and awaiting operator approval.',
+      created_at: now.toISOString()
+    }
+  ];
+
+  console.log(`[Supabase] Inserting 6 synthetic audit events for incident ${incidentId}...`);
+
+  const { data, error } = await supabase
+    .from('audit_events')
+    .insert(events)
+    .select('*');
+
+  if (error) {
+    console.error('[Supabase Audit Events Insert Error]:', error);
+    const detailString = [
+      `Message: ${error.message}`,
+      error.code ? `Code: ${error.code}` : null,
+      error.details ? `Details: ${error.details}` : null,
+      error.hint ? `Hint: ${error.hint}` : null
+    ].filter(Boolean).join(' | ');
+    throw new Error(`Failed to insert audit events: ${detailString}`);
+  }
+
+  return data || events;
+}
+
+export async function listAuditEvents(incidentId: string): Promise<any[]> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data, error } = await supabase
+    .from('audit_events')
+    .select('*')
+    .eq('incident_id', incidentId)
+    .order('created_at', { ascending: true }); // Order them oldest to newest
+
+  if (error) {
+    console.error('[Supabase listAuditEvents Error]:', error);
+    throw new Error(`Failed to list audit events: ${error.message}`);
+  }
+
+  return data || [];
 }
