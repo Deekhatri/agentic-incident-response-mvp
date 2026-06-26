@@ -11,7 +11,26 @@ import { OverviewDashboard } from './components/OverviewDashboard';
 import { IncidentsList } from './components/IncidentsList';
 import { AuditLogView } from './components/AuditLogView';
 import { IncidentDetail } from './components/IncidentDetail';
-import { supabase, listIncidents, createTestIncident, getIncident, createIncidentAlerts, deleteIncident, createAuditEvents } from './lib/supabase';
+import { 
+  supabase, 
+  listIncidents, 
+  createTestIncident, 
+  getIncident, 
+  createIncidentAlerts, 
+  deleteIncident, 
+  createAuditEvents,
+  createActionProposal,
+  getActionProposal,
+  approveActionProposal,
+  rejectActionProposal,
+  createActionExecution,
+  updateActionExecution,
+  getActionExecution,
+  getApproval,
+  getRemediationDetails,
+  createAuditEvent,
+  updateIncident
+} from './lib/supabase';
 import { 
   Incident, 
   Alert, 
@@ -274,62 +293,19 @@ export default function App() {
   };
 
   // Approve proposal handler
-  const handleApproveRemediation = (incidentId: string) => {
+  const handleApproveRemediation = async (incidentId: string) => {
     if (!userEmail) return;
 
-    // Find and update active incident state
-    setIncidents(prevIncidents => 
-      prevIncidents.map(inc => {
-        if (inc.id === incidentId) {
-          return {
-            ...inc,
-            status: 'Remediating',
-            remediationStatus: 'Approved',
-            systemHealth: 'Recovering',
-            updatedAt: new Date().toISOString()
-          };
-        }
-        return inc;
-      })
-    );
-
-    const targetInc = incidents.find(inc => inc.id === incidentId);
-    const incTitle = targetInc ? targetInc.title : 'Incident';
-
-    // Append Audit Log Entry
-    const approveAudit: AuditLogEntry = {
-      id: `aud-app-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      actor: userEmail,
-      actorType: 'Human',
-      action: 'Approved Remediation Proposal',
-      incidentTitle: incTitle,
-      result: 'Success. Action engine triggered. Running kubectl patch config-map.'
-    };
-    setAuditLogs(prev => [approveAudit, ...prev]);
-
-    // Append Timeline Event
-    const approveTimeline: TimelineEvent = {
-      id: `evt-app-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      type: 'Human',
-      title: 'Remediation Action Approved',
-      description: `Operator ${userEmail} approved the primary remediation proposal. Cluster agent is deploying the configuration fix.`
-    };
-    setTimelineEventsMap(prev => ({
-      ...prev,
-      [incidentId]: [...(prev[incidentId] || []), approveTimeline]
-    }));
-
-    // Trigger simulation pipeline (Pending Approved -> Executing -> Completed)
-    // 1. Approved -> Executing (after 1000ms)
-    setTimeout(() => {
+    if (isDemoMode) {
+      // Find and update active incident state
       setIncidents(prevIncidents => 
         prevIncidents.map(inc => {
           if (inc.id === incidentId) {
             return {
               ...inc,
-              remediationStatus: 'Executing',
+              status: 'Remediating',
+              remediationStatus: 'Approved',
+              systemHealth: 'Recovering',
               updatedAt: new Date().toISOString()
             };
           }
@@ -337,120 +313,279 @@ export default function App() {
         })
       );
 
-      const execTimeline: TimelineEvent = {
-        id: `evt-exec-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        type: 'System',
-        title: 'Deployment Rollout Triggered',
-        description: 'Executing Kubernetes rolling update rollout on deployment.'
-      };
-      setTimelineEventsMap(prev => ({
-        ...prev,
-        [incidentId]: [...(prev[incidentId] || []), execTimeline]
-      }));
-    }, 1000);
+      const targetInc = incidents.find(inc => inc.id === incidentId);
+      const incTitle = targetInc ? targetInc.title : 'Incident';
 
-    // 2. Executing -> Completed (after another 1200ms)
-    setTimeout(() => {
-      setIncidents(prevIncidents => 
-        prevIncidents.map(inc => {
-          if (inc.id === incidentId) {
-            return {
-              ...inc,
-              status: 'Resolved',
-              remediationStatus: 'Completed',
-              remediationResult: `Successfully updated environment configurations on configmap. 3 checkout pods restarted. Active traffic checks reporting 100% success rate.`,
-              systemHealth: 'Healthy',
-              updatedAt: new Date().toISOString()
-            };
-          }
-          return inc;
-        })
-      );
-
-      // Append Succeeded Audit Log
-      const successAudit: AuditLogEntry = {
-        id: `aud-suc-${Date.now()}`,
+      // Append Audit Log Entry
+      const approveAudit: AuditLogEntry = {
+        id: `aud-app-${Date.now()}`,
         timestamp: new Date().toISOString(),
-        actor: 'ResolveOps Agent',
-        actorType: 'Agent',
-        action: 'Completed Remediation Execution',
+        actor: userEmail,
+        actorType: 'Human',
+        action: 'Approved Remediation Proposal',
         incidentTitle: incTitle,
-        result: 'Success. Pod rolling restart completed safely. HTTP 200 OK verified across 100% of routes.'
+        result: 'Success. Action engine triggered. Running kubectl patch config-map.'
       };
-      setAuditLogs(prev => [successAudit, ...prev]);
+      setAuditLogs(prev => [approveAudit, ...prev]);
 
-      // Append Succeeded Timeline Event
-      const successTimeline: TimelineEvent = {
-        id: `evt-suc-${Date.now()}`,
+      // Append Timeline Event
+      const approveTimeline: TimelineEvent = {
+        id: `evt-app-${Date.now()}`,
         timestamp: new Date().toISOString(),
-        type: 'Agent',
-        title: 'Remediation Succeeded',
-        description: 'Autonomic service health verifications passed. All checkout-api replicas are healthy, and customer checkout flows are fully operational.'
+        type: 'Human',
+        title: 'Remediation Action Approved',
+        description: `Operator ${userEmail} approved the primary remediation proposal. Cluster agent is deploying the configuration fix.`
       };
       setTimelineEventsMap(prev => ({
         ...prev,
-        [incidentId]: [...(prev[incidentId] || []), successTimeline]
+        [incidentId]: [...(prev[incidentId] || []), approveTimeline]
       }));
 
-      // Add recent activity entry
-      setRecentActivities(prev => [
-        {
-          id: `act-suc-${Date.now()}`,
+      // Trigger simulation pipeline (Pending Approved -> Executing -> Completed)
+      // 1. Approved -> Executing (after 1000ms)
+      setTimeout(() => {
+        setIncidents(prevIncidents => 
+          prevIncidents.map(inc => {
+            if (inc.id === incidentId) {
+              return {
+                ...inc,
+                remediationStatus: 'Executing',
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return inc;
+          })
+        );
+
+        const execTimeline: TimelineEvent = {
+          id: `evt-exec-${Date.now()}`,
           timestamp: new Date().toISOString(),
-          message: `Self-healing completed for ${incTitle}. Latency returned to baseline.`
-        },
-        ...prev
-      ]);
-    }, 2200);
+          type: 'System',
+          title: 'Deployment Rollout Triggered',
+          description: 'Executing Kubernetes rolling update rollout on deployment.'
+        };
+        setTimelineEventsMap(prev => ({
+          ...prev,
+          [incidentId]: [...(prev[incidentId] || []), execTimeline]
+        }));
+      }, 1000);
+
+      // 2. Executing -> Completed (after another 1200ms)
+      setTimeout(() => {
+        setIncidents(prevIncidents => 
+          prevIncidents.map(inc => {
+            if (inc.id === incidentId) {
+              return {
+                ...inc,
+                status: 'Resolved',
+                remediationStatus: 'Completed',
+                remediationResult: `Successfully updated environment configurations on configmap. 3 checkout pods restarted. Active traffic checks reporting 100% success rate.`,
+                systemHealth: 'Healthy',
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return inc;
+          })
+        );
+
+        // Append Succeeded Audit Log
+        const successAudit: AuditLogEntry = {
+          id: `aud-suc-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          actor: 'ResolveOps Agent',
+          actorType: 'Agent',
+          action: 'Completed Remediation Execution',
+          incidentTitle: incTitle,
+          result: 'Success. Pod rolling restart completed safely. HTTP 200 OK verified across 100% of routes.'
+        };
+        setAuditLogs(prev => [successAudit, ...prev]);
+
+        // Append Succeeded Timeline Event
+        const successTimeline: TimelineEvent = {
+          id: `evt-suc-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          type: 'Agent',
+          title: 'Remediation Succeeded',
+          description: 'Autonomic service health verifications passed. All checkout-api replicas are healthy, and customer checkout flows are fully operational.'
+        };
+        setTimelineEventsMap(prev => ({
+          ...prev,
+          [incidentId]: [...(prev[incidentId] || []), successTimeline]
+        }));
+
+        // Add recent activity entry
+        setRecentActivities(prev => [
+          {
+            id: `act-suc-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            message: `Self-healing completed for ${incTitle}. Latency returned to baseline.`
+          },
+          ...prev
+        ]);
+      }, 2200);
+    } else {
+      // Supabase Authenticated Mode
+      if (!supabase) throw new Error('Supabase is not initialized');
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) throw new Error('No authenticated user session found');
+
+      // 1. Fetch action proposal for this incident
+      const proposal = await getActionProposal(incidentId);
+      if (!proposal) {
+        throw new Error(`No action proposal found for incident ${incidentId}`);
+      }
+
+      // 2. Update action_proposals.status to APPROVED and create approvals row
+      await approveActionProposal(proposal.id, userId);
+
+      // 3. Create action_executions row with status RUNNING
+      const execution = await createActionExecution({
+        action_proposal_id: proposal.id,
+        status: 'RUNNING',
+        started_at: new Date().toISOString()
+      });
+
+      // 4. Update the incident health_status to RECOVERING
+      await updateIncident(incidentId, {
+        health_status: 'RECOVERING',
+        updated_at: new Date().toISOString()
+      });
+
+      // 5. Create corresponding audit events in Supabase
+      await createAuditEvent({
+        user_id: userId,
+        incident_id: incidentId,
+        actor_type: 'Human',
+        actor_name: userEmail,
+        event_type: 'Remediation Action Approved',
+        description: `Operator ${userEmail} approved the primary remediation proposal. Cluster agent is deploying the configuration fix.`,
+        result: 'Success. Action engine triggered.'
+      });
+
+      await createAuditEvent({
+        user_id: userId,
+        incident_id: incidentId,
+        actor_type: 'System',
+        actor_name: 'ResolveOps Agent',
+        event_type: 'Deployment Rollout Triggered',
+        description: 'Executing Kubernetes rolling update rollout on deployment.',
+        result: 'Running'
+      });
+
+      // Wait approximately 2 seconds, then update execution to SUCCESS
+      setTimeout(async () => {
+        try {
+          const completedAt = new Date().toISOString();
+          const outputMessage = 'Successfully updated environment configurations on configmap. 3 checkout pods restarted. Active traffic checks reporting 100% success rate.';
+
+          await updateActionExecution(execution.id, {
+            status: 'SUCCESS',
+            output: outputMessage,
+            completed_at: completedAt
+          });
+
+          // Create corresponding audit event
+          await createAuditEvent({
+            user_id: userId,
+            incident_id: incidentId,
+            actor_type: 'Agent',
+            actor_name: 'Root Cause Agent',
+            event_type: 'Remediation Succeeded',
+            description: 'Autonomic service health verifications passed. All checkout-api replicas are healthy, and customer checkout flows are fully operational.',
+            result: 'Success. Pod rolling restart completed safely. HTTP 200 OK verified across 100% of routes.'
+          });
+
+          // Refresh Supabase Incidents in background
+          await fetchSupabaseIncidents();
+        } catch (bgErr) {
+          console.error('[App] Background execution complete error:', bgErr);
+        }
+      }, 2000);
+
+      // Refresh list immediately so UI changes to 'Executing'
+      await fetchSupabaseIncidents();
+    }
   };
 
   // Reject proposal handler
-  const handleRejectRemediation = (incidentId: string, reason: string) => {
+  const handleRejectRemediation = async (incidentId: string, reason: string) => {
     if (!userEmail) return;
 
-    setIncidents(prevIncidents => 
-      prevIncidents.map(inc => {
-        if (inc.id === incidentId) {
-          return {
-            ...inc,
-            remediationStatus: 'Rejected',
-            rejectionReason: reason,
-            status: 'Acknowledged', // return to investigation/acknowledged
-            updatedAt: new Date().toISOString()
-          };
-        }
-        return inc;
-      })
-    );
+    if (isDemoMode) {
+      setIncidents(prevIncidents => 
+        prevIncidents.map(inc => {
+          if (inc.id === incidentId) {
+            return {
+              ...inc,
+              remediationStatus: 'Rejected',
+              rejectionReason: reason,
+              status: 'Acknowledged', // return to investigation/acknowledged
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return inc;
+        })
+      );
 
-    const targetInc = incidents.find(inc => inc.id === incidentId);
-    const incTitle = targetInc ? targetInc.title : 'Incident';
+      const targetInc = incidents.find(inc => inc.id === incidentId);
+      const incTitle = targetInc ? targetInc.title : 'Incident';
 
-    // Append Audit Log
-    const rejectAudit: AuditLogEntry = {
-      id: `aud-rej-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      actor: userEmail,
-      actorType: 'Human',
-      action: 'Rejected Remediation Proposal',
-      incidentTitle: incTitle,
-      result: `Rejected. Reason: "${reason}"`
-    };
-    setAuditLogs(prev => [rejectAudit, ...prev]);
+      // Append Audit Log
+      const rejectAudit: AuditLogEntry = {
+        id: `aud-rej-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: userEmail,
+        actorType: 'Human',
+        action: 'Rejected Remediation Proposal',
+        incidentTitle: incTitle,
+        result: `Rejected. Reason: "${reason}"`
+      };
+      setAuditLogs(prev => [rejectAudit, ...prev]);
 
-    // Append Timeline Event
-    const rejectTimeline: TimelineEvent = {
-      id: `evt-rej-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      type: 'Human',
-      title: 'Remediation Proposal Declined',
-      description: `Operator rejected the proposed healing action. Reason: "${reason}". Automated healing pipeline paused.`
-    };
-    setTimelineEventsMap(prev => ({
-      ...prev,
-      [incidentId]: [...(prev[incidentId] || []), rejectTimeline]
-    }));
+      // Append Timeline Event
+      const rejectTimeline: TimelineEvent = {
+        id: `evt-rej-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: 'Human',
+        title: 'Remediation Proposal Declined',
+        description: `Operator rejected the proposed healing action. Reason: "${reason}". Automated healing pipeline paused.`
+      };
+      setTimelineEventsMap(prev => ({
+        ...prev,
+        [incidentId]: [...(prev[incidentId] || []), rejectTimeline]
+      }));
+    } else {
+      // Supabase Authenticated Mode
+      if (!supabase) throw new Error('Supabase is not initialized');
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) throw new Error('No authenticated user session found');
+
+      const proposal = await getActionProposal(incidentId);
+      if (!proposal) {
+        throw new Error(`No action proposal found for incident ${incidentId}`);
+      }
+
+      // Create approvals row with decision REJECTED and update status
+      await rejectActionProposal(proposal.id, userId, reason);
+
+      // Create corresponding audit event
+      await createAuditEvent({
+        user_id: userId,
+        incident_id: incidentId,
+        actor_type: 'Human',
+        actor_name: userEmail,
+        event_type: 'Remediation Proposal Declined',
+        description: `Operator rejected the proposed healing action. Reason: "${reason}". Automated healing pipeline paused.`,
+        result: `Rejected. Reason: "${reason}"`
+      });
+
+      // Refresh Supabase list
+      await fetchSupabaseIncidents();
+    }
   };
 
   // Generate Postmortem handler
@@ -602,6 +737,17 @@ export default function App() {
 
         console.log('[App] Inserting 6 audit events in Supabase for incident_id:', newIncident.id);
         await createAuditEvents(user.id, newIncident.id);
+
+        console.log('[App] Inserting action proposal in Supabase for incident_id:', newIncident.id);
+        await createActionProposal({
+          incident_id: newIncident.id,
+          user_id: user.id,
+          action_type: 'restart_deployment',
+          target: 'checkout-api',
+          status: 'PENDING',
+          risk_level: 'MEDIUM',
+          proposed_reason: 'Restart checkout-api after restoring the missing PAYMENT_GATEWAY_URL environment configuration.'
+        });
 
         console.log('[App] Refreshing incident list after successful insertion...');
         // Refresh incident list

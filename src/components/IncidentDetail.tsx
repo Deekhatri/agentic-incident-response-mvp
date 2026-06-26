@@ -30,7 +30,7 @@ import { ActionProposal } from './ActionProposal';
 import { ApprovalControls } from './ApprovalControls';
 import { TimelineEvent } from './TimelineEvent';
 import { PostmortemSection } from './PostmortemSection';
-import { listIncidentAlerts, listAuditEvents, mapRowToTimelineEvent } from '../lib/supabase';
+import { listIncidentAlerts, listAuditEvents, mapRowToTimelineEvent, getRemediationDetails } from '../lib/supabase';
 
 interface IncidentDetailProps {
   incident: Incident;
@@ -38,7 +38,7 @@ interface IncidentDetailProps {
   isDemoMode?: boolean;
   timelineEvents: TimelineEventType[];
   onBack: () => void;
-  onApproveRemediation: (id: string) => void;
+  onApproveRemediation: (id: string) => Promise<void>;
   onRejectRemediation: (id: string, reason: string) => void;
   onGeneratePostmortem: (id: string) => void;
 }
@@ -63,6 +63,14 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
   const [dbAuditEvents, setDbAuditEvents] = useState<TimelineEventType[]>([]);
   const [isLoadingAuditEvents, setIsLoadingAuditEvents] = useState(false);
   const [auditEventsError, setAuditEventsError] = useState<string | null>(null);
+
+  const [remediationDetails, setRemediationDetails] = useState<{
+    proposal: any | null;
+    approval: any | null;
+    execution: any | null;
+  } | null>(null);
+  const [isLoadingRemediation, setIsLoadingRemediation] = useState(false);
+  const [remediationError, setRemediationError] = useState<string | null>(null);
 
   const loadSupabaseAlerts = async () => {
     if (isDemoMode) return;
@@ -97,13 +105,59 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
     }
   };
 
+  const loadSupabaseRemediation = async () => {
+    if (isDemoMode) return;
+    setIsLoadingRemediation(true);
+    setRemediationError(null);
+    try {
+      console.log('[IncidentDetail] Fetching Supabase remediation details for:', incident.id);
+      const details = await getRemediationDetails(incident.id);
+      setRemediationDetails(details);
+    } catch (err: any) {
+      console.error('[IncidentDetail] Failed to load remediation details:', err);
+      setRemediationError(err.message || 'Failed to load remediation records.');
+    } finally {
+      setIsLoadingRemediation(false);
+    }
+  };
+
   useEffect(() => {
     loadSupabaseAlerts();
     loadSupabaseAuditEvents();
+    loadSupabaseRemediation();
   }, [incident.id, isDemoMode]);
 
   const displayAlerts = isDemoMode ? alerts : dbAlerts;
   const displayTimelineEvents = isDemoMode ? timelineEvents : dbAuditEvents;
+
+  // Determine mapped remediation state for presentation
+  let derivedStatus = incident.remediationStatus;
+  let derivedResult = incident.remediationResult;
+  let derivedRejectionReason = incident.rejectionReason;
+
+  if (!isDemoMode && remediationDetails) {
+    const { proposal, approval, execution } = remediationDetails;
+    if (proposal) {
+      if (proposal.status === 'PENDING') {
+        derivedStatus = 'Pending Approval';
+      } else if (proposal.status === 'REJECTED') {
+        derivedStatus = 'Rejected';
+        if (approval && approval.reason) {
+          derivedRejectionReason = approval.reason;
+        }
+      } else if (proposal.status === 'APPROVED') {
+        derivedStatus = 'Approved';
+        if (execution) {
+          if (execution.status === 'RUNNING') {
+            derivedStatus = 'Executing';
+          } else if (execution.status === 'SUCCESS') {
+            derivedStatus = 'Completed';
+            derivedResult = execution.output || 'Execution completed successfully.';
+          }
+        }
+      }
+    }
+  }
 
   // Filter alerts associated with this incident's service
   const associatedAlerts = displayAlerts.filter(alt => {
@@ -272,14 +326,28 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
               {/* Right Column (Remediation Actions & Approvals) */}
               <div className="space-y-6">
                 
+                {remediationError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs flex items-center gap-2 font-sans">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
+                    <span><strong>Database Error:</strong> {remediationError}</span>
+                  </div>
+                )}
+
+                {isLoadingRemediation && !remediationDetails && (
+                  <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-md text-zinc-500 text-xs flex items-center gap-2 font-sans">
+                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-zinc-500"></div>
+                    <span>Synchronizing remediation state...</span>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
                     Remediation & Healing Plan
                   </h3>
                   <ActionProposal
                     proposedRemediation={incident.proposedRemediation}
-                    remediationStatus={incident.remediationStatus}
-                    remediationResult={incident.remediationResult}
+                    remediationStatus={derivedStatus}
+                    remediationResult={derivedResult}
                     blastRadius={incident.blastRadius}
                     alternativeHypothesis={incident.alternativeHypothesis}
                   />
@@ -287,10 +355,33 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
 
                 {/* Approval Control panel */}
                 <ApprovalControls
-                  status={incident.remediationStatus}
-                  rejectionReason={incident.rejectionReason}
-                  onApprove={() => onApproveRemediation(incident.id)}
-                  onReject={(reason) => onRejectRemediation(incident.id, reason)}
+                  status={derivedStatus}
+                  rejectionReason={derivedRejectionReason}
+                  onApprove={async () => {
+                    // Propagate the error so ApprovalControls can catch and display it
+                    await onApproveRemediation(incident.id);
+
+                    // Fetch latest details immediately after immediate writes are completed
+                    await loadSupabaseRemediation();
+                    await loadSupabaseAuditEvents();
+
+                    // Refresh again 2.1 seconds later when background job completes
+                    setTimeout(async () => {
+                      await loadSupabaseRemediation();
+                      await loadSupabaseAuditEvents();
+                    }, 2100);
+                  }}
+                  onReject={async (reason) => {
+                    try {
+                      await onRejectRemediation(incident.id, reason);
+                      setTimeout(() => {
+                        loadSupabaseRemediation();
+                        loadSupabaseAuditEvents();
+                      }, 400);
+                    } catch (err) {
+                      console.error('[IncidentDetail] reject error:', err);
+                    }
+                  }}
                 />
 
               </div>

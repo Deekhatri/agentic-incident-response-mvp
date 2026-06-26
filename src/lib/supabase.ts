@@ -17,7 +17,7 @@ export function mapRowToIncident(row: any): Incident {
     service: row.service_name || 'unknown-service',
     environment: (row.environment === 'staging' || row.environment === 'Staging' ? 'Staging' : row.environment === 'production' || row.environment === 'Production' ? 'Production' : 'Dev') as any,
     severity: (row.severity || 'SEV-1') as any,
-    status: (row.status === 'OPEN' ? 'Triggered' : row.status === 'CLOSED' || row.status === 'RESOLVED' || row.status === 'Resolved' ? 'Resolved' : 'Triggered') as any,
+    status: (row.status === 'OPEN' || row.status === 'open' ? 'Triggered' : row.status === 'CLOSED' || row.status === 'RESOLVED' || row.status === 'Resolved' || row.status === 'resolved' ? 'Resolved' : 'Triggered') as any,
     alertCount: Number(row.alert_count ?? 0),
     confidence: 92,
     probableCause: 'The latest checkout-api deployment is missing the PAYMENT_GATEWAY_URL environment variable.',
@@ -36,7 +36,11 @@ export function mapRowToIncident(row: any): Incident {
     noiseReduction: `${row.noise_reduction_percentage ?? 96}% (${row.alert_count ?? 24} alerts grouped into 1 incident)`,
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || new Date().toISOString(),
-    systemHealth: (row.health_status === 'DEGRADED' ? 'Degraded' : 'Healthy') as any,
+    systemHealth: (row.health_status === 'DEGRADED' || row.health_status === 'degraded'
+      ? 'Degraded'
+      : row.health_status === 'RECOVERING' || row.health_status === 'recovering' || row.health_status === 'Recovering'
+        ? 'Recovering'
+        : 'Healthy') as any,
     hasPostmortem: false,
     postmortem: null
   };
@@ -47,16 +51,46 @@ export async function listIncidents(): Promise<Incident[]> {
     throw new Error('Supabase client is not initialized.');
   }
 
-  const { data, error } = await supabase
+  const { data: incidentRows, error: incidentError } = await supabase
     .from('incidents')
     .select('*')
     .order('created_at', { ascending: false });
 
-  if (error) {
-    throw new Error(error.message);
+  if (incidentError) {
+    throw new Error(incidentError.message);
   }
 
-  return (data || []).map(mapRowToIncident);
+  // Fetch proposals to map remediation status accurately
+  let proposalsMap: Record<string, string> = {};
+  try {
+    const { data: proposals } = await supabase
+      .from('action_proposals')
+      .select('incident_id, status');
+    if (proposals) {
+      proposals.forEach((p: any) => {
+        if (p.incident_id) {
+          proposalsMap[String(p.incident_id)] = p.status;
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('[Supabase] Failed to fetch proposals map:', err);
+  }
+
+  return (incidentRows || []).map(row => {
+    const incident = mapRowToIncident(row);
+    const propStatus = proposalsMap[incident.id];
+    if (propStatus) {
+      if (propStatus === 'PENDING') {
+        incident.remediationStatus = 'Pending Approval';
+      } else if (propStatus === 'REJECTED') {
+        incident.remediationStatus = 'Rejected';
+      } else if (propStatus === 'APPROVED') {
+        incident.remediationStatus = 'Approved';
+      }
+    }
+    return incident;
+  });
 }
 
 export async function createTestIncident(userId: string): Promise<Incident> {
@@ -109,7 +143,7 @@ export async function getIncident(id: string): Promise<Incident> {
     throw new Error('Supabase client is not initialized.');
   }
 
-  const { data, error } = await supabase
+  const { data: row, error } = await supabase
     .from('incidents')
     .select('*')
     .eq('id', id)
@@ -119,11 +153,33 @@ export async function getIncident(id: string): Promise<Incident> {
     throw new Error(error.message);
   }
 
-  if (!data) {
+  if (!row) {
     throw new Error(`Incident with ID ${id} not found.`);
   }
 
-  return mapRowToIncident(data);
+  const incident = mapRowToIncident(row);
+
+  try {
+    const { data: proposal } = await supabase
+      .from('action_proposals')
+      .select('status')
+      .eq('incident_id', id)
+      .maybeSingle();
+
+    if (proposal) {
+      if (proposal.status === 'PENDING') {
+        incident.remediationStatus = 'Pending Approval';
+      } else if (proposal.status === 'REJECTED') {
+        incident.remediationStatus = 'Rejected';
+      } else if (proposal.status === 'APPROVED') {
+        incident.remediationStatus = 'Approved';
+      }
+    }
+  } catch (err) {
+    console.warn('[Supabase] Failed to fetch proposal status for single incident:', err);
+  }
+
+  return incident;
 }
 
 export async function deleteIncident(id: string): Promise<void> {
@@ -423,4 +479,299 @@ export async function listAuditEvents(incidentId: string): Promise<any[]> {
   }
 
   return data || [];
+}
+
+export async function createActionProposal(proposal: {
+  incident_id: string;
+  user_id: string;
+  action_type: string;
+  target: string;
+  status: string;
+  risk_level: string;
+  proposed_reason: string;
+}): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data, error } = await supabase
+    .from('action_proposals')
+    .insert(proposal)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('[Supabase createActionProposal Error]:', error);
+    throw new Error(`Failed to create action proposal: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getActionProposal(incidentId: string): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data, error } = await supabase
+    .from('action_proposals')
+    .select('*')
+    .eq('incident_id', incidentId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[Supabase getActionProposal Error]:', error);
+    throw new Error(`Failed to get action proposal: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function approveActionProposal(proposalId: string, userId: string): Promise<void> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  // 1. Update proposal status to APPROVED
+  const { error: updateError } = await supabase
+    .from('action_proposals')
+    .update({ status: 'APPROVED', updated_at: new Date().toISOString() })
+    .eq('id', proposalId);
+
+  if (updateError) {
+    console.error('[Supabase approveActionProposal Update Error]:', updateError);
+    throw new Error(`Failed to update proposal status to APPROVED: ${updateError.message}`);
+  }
+
+  // 2. Insert approvals row
+  const { error: insertError } = await supabase
+    .from('approvals')
+    .insert({
+      action_proposal_id: proposalId,
+      user_id: userId,
+      decision: 'APPROVED',
+      created_at: new Date().toISOString()
+    });
+
+  if (insertError) {
+    console.error('[Supabase approveActionProposal Insert Error]:', insertError);
+    throw new Error(`Failed to insert approval record: ${insertError.message}`);
+  }
+}
+
+export async function rejectActionProposal(proposalId: string, userId: string, reason: string): Promise<void> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  // 1. Update proposal status to REJECTED
+  const { error: updateError } = await supabase
+    .from('action_proposals')
+    .update({ status: 'REJECTED', updated_at: new Date().toISOString() })
+    .eq('id', proposalId);
+
+  if (updateError) {
+    console.error('[Supabase rejectActionProposal Update Error]:', updateError);
+    throw new Error(`Failed to update proposal status to REJECTED: ${updateError.message}`);
+  }
+
+  // 2. Insert approvals row with decision REJECTED
+  const { error: insertError } = await supabase
+    .from('approvals')
+    .insert({
+      action_proposal_id: proposalId,
+      user_id: userId,
+      decision: 'REJECTED',
+      reason: reason,
+      created_at: new Date().toISOString()
+    });
+
+  if (insertError) {
+    console.error('[Supabase rejectActionProposal Insert Error]:', insertError);
+    throw new Error(`Failed to insert rejection approval record: ${insertError.message}`);
+  }
+}
+
+export async function createActionExecution(execution: {
+  action_proposal_id: string;
+  status: string;
+  output?: string;
+  started_at?: string;
+  completed_at?: string;
+}): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    throw new Error(`No authenticated user session found: ${userError?.message || 'User not logged in'}`);
+  }
+
+  const payload = {
+    user_id: user.id,
+    action_proposal_id: execution.action_proposal_id,
+    status: execution.status,
+    output: execution.output,
+    started_at: execution.started_at,
+    completed_at: execution.completed_at,
+    created_at: new Date().toISOString()
+  };
+
+  const { data, error } = await supabase
+    .from('action_executions')
+    .insert(payload)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('[Supabase createActionExecution Error]:', error);
+    throw new Error(`Failed to create action execution: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function updateActionExecution(executionId: string, updates: {
+  status: string;
+  output?: string;
+  started_at?: string;
+  completed_at?: string;
+}): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    throw new Error(`No authenticated user session found: ${userError?.message || 'User not logged in'}`);
+  }
+
+  const { data, error } = await supabase
+    .from('action_executions')
+    .update(updates)
+    .eq('id', executionId)
+    .eq('user_id', user.id)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('[Supabase updateActionExecution Error]:', error);
+    throw new Error(`Failed to update action execution: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getActionExecution(proposalId: string): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data, error } = await supabase
+    .from('action_executions')
+    .select('*')
+    .eq('action_proposal_id', proposalId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[Supabase getActionExecution Error]:', error);
+    throw new Error(`Failed to get action execution: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getApproval(proposalId: string): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data, error } = await supabase
+    .from('approvals')
+    .select('*')
+    .eq('action_proposal_id', proposalId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[Supabase getApproval Error]:', error);
+    throw new Error(`Failed to get approval: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getRemediationDetails(incidentId: string): Promise<{
+  proposal: any | null;
+  approval: any | null;
+  execution: any | null;
+}> {
+  const proposal = await getActionProposal(incidentId);
+  let approval = null;
+  let execution = null;
+
+  if (proposal) {
+    try {
+      approval = await getApproval(proposal.id);
+    } catch (err) {
+      console.warn('[Supabase] Failed to get approval details:', err);
+    }
+
+    try {
+      execution = await getActionExecution(proposal.id);
+    } catch (err) {
+      console.warn('[Supabase] Failed to get action execution details:', err);
+    }
+  }
+
+  return { proposal, approval, execution };
+}
+
+export async function createAuditEvent(event: {
+  user_id: string;
+  incident_id: string;
+  actor_type: string;
+  actor_name: string;
+  event_type: string;
+  description: string;
+  result: string;
+  created_at?: string;
+}): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data, error } = await supabase
+    .from('audit_events')
+    .insert({
+      ...event,
+      created_at: event.created_at || new Date().toISOString()
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('[Supabase createAuditEvent Error]:', error);
+    throw new Error(`Failed to create audit event: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function updateIncident(incidentId: string, updates: any): Promise<void> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { error } = await supabase
+    .from('incidents')
+    .update(updates)
+    .eq('id', incidentId);
+
+  if (error) {
+    console.error('[Supabase updateIncident Error]:', error);
+    throw new Error(`Failed to update incident: ${error.message}`);
+  }
 }

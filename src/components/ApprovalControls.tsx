@@ -10,7 +10,7 @@ import { RemediationStatus } from '../types';
 interface ApprovalControlsProps {
   status: RemediationStatus;
   rejectionReason: string | null;
-  onApprove: () => void;
+  onApprove: () => Promise<void>;
   onReject: (reason: string) => void;
 }
 
@@ -23,6 +23,21 @@ export const ApprovalControls: React.FC<ApprovalControlsProps> = ({
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [reasonInput, setReasonInput] = useState('');
   const [isSubmittingReject, setIsSubmittingReject] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
+
+  const handleApproveClick = async () => {
+    setIsApproving(true);
+    setApproveError(null);
+    try {
+      await onApprove();
+    } catch (err: any) {
+      console.error('[ApprovalControls] Approve Error:', err);
+      setApproveError(err.message || 'Failed to approve action proposal.');
+    } finally {
+      setIsApproving(false);
+    }
+  };
 
   const handleRejectSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,19 +70,40 @@ export const ApprovalControls: React.FC<ApprovalControlsProps> = ({
               </div>
             </div>
 
+            {approveError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs flex items-start gap-2 font-sans">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
+                <div className="flex-1">
+                  <span className="font-bold block">Approval Failed:</span>
+                  <p className="mt-0.5">{approveError}</p>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={onApprove}
-                className="flex items-center gap-1.5 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-md text-sm font-mono font-medium transition-colors border border-transparent shadow-xs"
+                onClick={handleApproveClick}
+                disabled={isApproving}
+                className="flex items-center gap-1.5 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-md text-sm font-mono font-medium transition-colors border border-transparent shadow-xs disabled:opacity-50"
               >
-                <Check className="w-4 h-4" />
-                Approve Proposal
+                {isApproving ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Approving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Approve Proposal
+                  </>
+                )}
               </button>
               <button
                 type="button"
                 onClick={() => setShowRejectForm(true)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-300 rounded-md text-sm font-mono font-medium transition-colors"
+                disabled={isApproving}
+                className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-300 rounded-md text-sm font-mono font-medium transition-colors disabled:opacity-50"
               >
                 <X className="w-4 h-4 text-zinc-500" />
                 Reject
