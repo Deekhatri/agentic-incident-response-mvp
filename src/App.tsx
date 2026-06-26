@@ -53,6 +53,38 @@ import {
   TEST_INCIDENT_ID
 } from './mockData';
 
+function parseHash() {
+  const hash = window.location.hash || '';
+  if (!hash) {
+    return { screen: 'dashboard', incidentId: null, tab: null };
+  }
+
+  // Remove leading '#' and trailing '/' if any
+  const cleanHash = hash.replace(/^#\/?/, '');
+  const parts = cleanHash.split('/');
+
+  if (parts[0] === 'dashboard') {
+    return { screen: 'dashboard', incidentId: null, tab: null };
+  }
+  if (parts[0] === 'incidents') {
+    if (parts[1]) {
+      // It's #/incidents/:incidentId/:tab
+      return { 
+        screen: 'incident-detail', 
+        incidentId: parts[1], 
+        tab: parts[2] || null 
+      };
+    }
+    return { screen: 'incidents', incidentId: null, tab: null };
+  }
+  if (parts[0] === 'audit') {
+    return { screen: 'audit', incidentId: null, tab: null };
+  }
+
+  // Default fallback if unknown
+  return { screen: 'dashboard', incidentId: null, tab: null };
+}
+
 export default function App() {
   const [userEmail, setUserEmail] = useState<string | null>(() => {
     return sessionStorage.getItem('resolveops_demo_user');
@@ -61,6 +93,8 @@ export default function App() {
   const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
   const [activeScreen, setActiveScreen] = useState<'dashboard' | 'incidents' | 'audit' | 'incident-detail'>('dashboard');
   const [activeIncidentId, setActiveIncidentId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'alerts' | 'timeline' | 'postmortem'>('overview');
+  const [hasLoadedData, setHasLoadedData] = useState(false);
 
   // Deep cloned state for incidents, alerts, audit log, and timeline map to allow pristine resets
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -227,11 +261,13 @@ export default function App() {
         });
         return nextMap;
       });
+      setHasLoadedData(true);
     } catch (err: any) {
       console.error('Failed to fetch incidents from Supabase:', err);
       setDbError(err.message || 'Database connection error');
     } finally {
       setIsDbLoading(false);
+      setHasLoadedData(true);
     }
   };
 
@@ -239,6 +275,7 @@ export default function App() {
     if (userEmail) {
       if (isDemoMode) {
         initializeDemoState();
+        setHasLoadedData(true);
       } else {
         fetchSupabaseIncidents();
       }
@@ -260,6 +297,63 @@ export default function App() {
 
   const activeIncident = incidents.find(inc => inc.id === activeIncidentId);
 
+  // On mount or when userEmail becomes available, parse initial hash
+  useEffect(() => {
+    if (userEmail) {
+      const parsed = parseHash();
+      setActiveScreen(parsed.screen as any);
+      setActiveIncidentId(parsed.incidentId);
+      if (parsed.tab) {
+        setActiveTab(parsed.tab as any);
+      } else {
+        setActiveTab('overview');
+      }
+    }
+  }, [userEmail]);
+
+  // Setup hashchange event listener
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (!userEmail) return;
+      const parsed = parseHash();
+      setActiveScreen(parsed.screen as any);
+      setActiveIncidentId(parsed.incidentId);
+      if (parsed.tab) {
+        setActiveTab(parsed.tab as any);
+      } else {
+        setActiveTab('overview');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, [userEmail]);
+
+  // Sync state to hash
+  useEffect(() => {
+    if (!userEmail) return;
+
+    let targetHash = '#/dashboard';
+    if (activeScreen === 'dashboard') {
+      targetHash = '#/dashboard';
+    } else if (activeScreen === 'incidents') {
+      targetHash = '#/incidents';
+    } else if (activeScreen === 'audit') {
+      targetHash = '#/audit';
+    } else if (activeScreen === 'incident-detail' && activeIncidentId) {
+      targetHash = `#/incidents/${activeIncidentId}`;
+      if (activeTab && activeTab !== 'overview') {
+        targetHash += `/${activeTab}`;
+      }
+    }
+
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
+  }, [activeScreen, activeIncidentId, activeTab, userEmail]);
+
   // Authentication Handlers
   const handleSignIn = (email: string) => {
     setUserEmail(email);
@@ -280,10 +374,17 @@ export default function App() {
     setActiveScreen('dashboard');
   };
 
+  // Sidebar screen change handler
+  const handleSidebarScreenChange = (screen: 'dashboard' | 'incidents' | 'audit') => {
+    setActiveScreen(screen);
+    setActiveIncidentId(null);
+  };
+
   // Select incident handler
   const handleSelectIncident = (id: string) => {
     setActiveIncidentId(id);
     setActiveScreen('incident-detail');
+    setActiveTab('overview');
   };
 
   // Back from details handler
@@ -904,9 +1005,38 @@ export default function App() {
               onApproveRemediation={handleApproveRemediation}
               onRejectRemediation={handleRejectRemediation}
               onGeneratePostmortem={handleGeneratePostmortem}
+              initialTab={activeTab}
+              onTabChange={setActiveTab}
             />
           );
         }
+
+        if (hasLoadedData && !isDbLoading) {
+          return (
+            <div className="flex flex-col items-center justify-center p-12 min-h-[400px] border border-dashed border-zinc-200 rounded-lg bg-white space-y-6 max-w-xl mx-auto my-8">
+              <div className="p-3 bg-zinc-50 border border-zinc-200 text-zinc-600 rounded-full">
+                <ShieldAlert className="w-8 h-8 text-zinc-500 shrink-0 animate-pulse" />
+              </div>
+              <div className="text-center space-y-2">
+                <h3 className="text-sm font-mono font-bold uppercase text-zinc-900 tracking-wider">Incident Not Found</h3>
+                <p className="text-sm text-zinc-500 font-sans leading-relaxed">
+                  The requested incident record does not exist or does not belong to your signed-in account.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveScreen('dashboard');
+                  setActiveIncidentId(null);
+                }}
+                className="px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-xs font-mono font-medium transition-colors cursor-pointer shadow-xs"
+              >
+                Return to Dashboard
+              </button>
+            </div>
+          );
+        }
+
         return <div className="p-8 text-center text-zinc-500 font-mono">Loading incident details...</div>;
       default:
         return <div className="p-8 text-center text-zinc-500 font-mono">Screen routing error</div>;
@@ -947,7 +1077,7 @@ export default function App() {
       {/* Primary Sidebar Layout */}
       <Sidebar
         activeScreen={activeScreen}
-        setActiveScreen={setActiveScreen}
+        setActiveScreen={handleSidebarScreenChange}
         userEmail={userEmail}
         onSignOut={handleSignOut}
         systemHealth={getOverallSystemHealth()}

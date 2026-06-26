@@ -41,6 +41,8 @@ interface IncidentDetailProps {
   onApproveRemediation: (id: string) => Promise<void>;
   onRejectRemediation: (id: string, reason: string) => void;
   onGeneratePostmortem: (id: string) => void | Promise<void>;
+  initialTab?: 'overview' | 'evidence' | 'alerts' | 'timeline' | 'postmortem';
+  onTabChange?: (tab: 'overview' | 'evidence' | 'alerts' | 'timeline' | 'postmortem') => void;
 }
 
 function buildPostmortemPayload(incident: Incident, remediationResult: string | null) {
@@ -81,10 +83,17 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
   onBack,
   onApproveRemediation,
   onRejectRemediation,
-  onGeneratePostmortem
+  onGeneratePostmortem,
+  initialTab = 'overview',
+  onTabChange
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'alerts' | 'timeline' | 'postmortem'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'alerts' | 'timeline' | 'postmortem'>(initialTab);
   const [alertSearch, setAlertSearch] = useState('');
+
+  // Sync internal activeTab state if initialTab changes externally
+  React.useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const [dbAlerts, setDbAlerts] = useState<Alert[]>([]);
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
@@ -371,7 +380,11 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => {
+                const selectedTab = tab.id as any;
+                setActiveTab(selectedTab);
+                onTabChange?.(selectedTab);
+              }}
               className={`flex items-center gap-2 px-4 py-2.5 border-b-2 font-mono text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === tab.id
                   ? 'border-zinc-900 text-zinc-950 bg-white'
