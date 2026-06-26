@@ -775,3 +775,128 @@ export async function updateIncident(incidentId: string, updates: any): Promise<
     throw new Error(`Failed to update incident: ${error.message}`);
   }
 }
+
+export async function createPostmortem(postmortem: {
+  incident_id: string;
+  status: string;
+  summary: string;
+  customer_impact: string;
+  detection: string;
+  root_cause: string;
+  resolution: string;
+  timeline: string[];
+  contributing_factors: string[];
+  follow_up_actions: string[];
+}): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    throw new Error(`No authenticated user session found: ${userError?.message || 'User not logged in'}`);
+  }
+
+  const payload = {
+    user_id: user.id,
+    incident_id: postmortem.incident_id,
+    status: postmortem.status,
+    summary: postmortem.summary,
+    customer_impact: postmortem.customer_impact,
+    detection: postmortem.detection,
+    root_cause: postmortem.root_cause,
+    resolution: postmortem.resolution,
+    timeline: Array.isArray(postmortem.timeline) ? postmortem.timeline : [],
+    contributing_factors: Array.isArray(postmortem.contributing_factors) ? postmortem.contributing_factors : [],
+    follow_up_actions: Array.isArray(postmortem.follow_up_actions) ? postmortem.follow_up_actions : []
+  };
+
+  const { data, error } = await supabase
+    .from('postmortems')
+    .insert(payload)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('[Supabase createPostmortem Error]:', error);
+    const detailString = [
+      `Message: ${error.message}`,
+      error.code ? `Code: ${error.code}` : null,
+      error.details ? `Details: ${error.details}` : null,
+      error.hint ? `Hint: ${error.hint}` : null
+    ].filter(Boolean).join(' | ');
+    throw new Error(`Failed to create postmortem: ${detailString}`);
+  }
+
+  return data;
+}
+
+export async function getPostmortem(incidentId: string): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data, error } = await supabase
+    .from('postmortems')
+    .select('*')
+    .eq('incident_id', incidentId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[Supabase getPostmortem Error]:', error);
+    const detailString = [
+      `Message: ${error.message}`,
+      error.code ? `Code: ${error.code}` : null,
+      error.details ? `Details: ${error.details}` : null,
+      error.hint ? `Hint: ${error.hint}` : null
+    ].filter(Boolean).join(' | ');
+    throw new Error(`Failed to get postmortem: ${detailString}`);
+  }
+
+  return data;
+}
+
+export async function updatePostmortem(id: string, updates: any): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    throw new Error(`No authenticated user session found: ${userError?.message || 'User not logged in'}`);
+  }
+
+  const payloadUpdates: any = { ...updates };
+  // Ensure array fields are formatted as arrays if updated
+  if ('timeline' in payloadUpdates) {
+    payloadUpdates.timeline = Array.isArray(payloadUpdates.timeline) ? payloadUpdates.timeline : [];
+  }
+  if ('contributing_factors' in payloadUpdates) {
+    payloadUpdates.contributing_factors = Array.isArray(payloadUpdates.contributing_factors) ? payloadUpdates.contributing_factors : [];
+  }
+  if ('follow_up_actions' in payloadUpdates) {
+    payloadUpdates.follow_up_actions = Array.isArray(payloadUpdates.follow_up_actions) ? payloadUpdates.follow_up_actions : [];
+  }
+
+  const { data, error } = await supabase
+    .from('postmortems')
+    .update(payloadUpdates)
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('[Supabase updatePostmortem Error]:', error);
+    const detailString = [
+      `Message: ${error.message}`,
+      error.code ? `Code: ${error.code}` : null,
+      error.details ? `Details: ${error.details}` : null,
+      error.hint ? `Hint: ${error.hint}` : null
+    ].filter(Boolean).join(' | ');
+    throw new Error(`Failed to update postmortem: ${detailString}`);
+  }
+
+  return data;
+}
+

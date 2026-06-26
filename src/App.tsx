@@ -589,58 +589,80 @@ export default function App() {
   };
 
   // Generate Postmortem handler
-  const handleGeneratePostmortem = (incidentId: string) => {
-    setIncidents(prevIncidents => 
-      prevIncidents.map(inc => {
-        if (inc.id === incidentId) {
-          const generatedPostmortem: Postmortem = {
-            summary: `Automated postmortem report compiled by ResolveOps Agent following resolution of the checkout-api crash conditions in the staging cluster.`,
-            customerImpact: `Minimal customer impact. Internal engineers reported checkout blockage in staging environments for 43 minutes. Production traffic remained entirely isolated.`,
-            detection: `Alerting initiated at 14:32 after an API gateway failure rate spiked to 14.5% during rolling deployment. Ingress checks triggered cluster-alert-checkout-5xx.`,
-            timeline: [
-              '14:32:00 UTC - CI/CD pipeline triggered deployment of version v2.4.8 of checkout-api.',
-              '14:33:02 UTC - First checkout-api pod entered CrashLoopBackOff due to a fatal initialization config error.',
-              '14:35:15 UTC - Prometheus triggered HTTP 5xx threshold alerts.',
-              '14:41:00 UTC - ResolveOps core ingested 24 clustered alerts, suppressed noise by 95.8%, and designated SEV-1 incident inc-checkout-5xx.',
-              '14:45:00 UTC - ResolveOps Agent parsed container startup exceptions, identifying the missing environment variable. Action proposal generated.',
-              '14:52:12 UTC - Operator manually authorized remediation proposal. Automation patches ConfigMap and triggers rollout.',
-              '14:54:30 UTC - Service replicas stabilized. Active synthetic traffic probes reporting 100% charge success rate.'
-            ],
-            rootCause: `The helm values template for version v2.4.8 lacked parameter mapping definitions for the required PAYMENT_GATEWAY_URL environment variable during the staging overlay render.`,
-            resolution: `Patched k8s ConfigMap manually via script and performed zero-downtime kubectl rollout restart deployment/checkout-api.`,
-            contributingFactors: [
-              'The staging environment variables configuration lacked schema integration tests.',
-              'Checkout-api was programmed to crash-loop rather than degrade gracefully if payment endpoints were unreachable.'
-            ],
-            followUpActions: [
-              'Add static configuration schema analysis to CI/CD pipeline tests.',
-              'Implement fallback mock pathways in checkout-api to permit testing during gateway outages.'
-            ]
-          };
+  const handleGeneratePostmortem = async (incidentId: string) => {
+    if (isDemoMode) {
+      setIncidents(prevIncidents => 
+        prevIncidents.map(inc => {
+          if (inc.id === incidentId) {
+            const generatedPostmortem: Postmortem = {
+              summary: `Automated postmortem report compiled by ResolveOps Agent following resolution of the checkout-api crash conditions in the staging cluster.`,
+              customerImpact: `Minimal customer impact. Internal engineers reported checkout blockage in staging environments for 43 minutes. Production traffic remained entirely isolated.`,
+              detection: `Alerting initiated at 14:32 after an API gateway failure rate spiked to 14.5% during rolling deployment. Ingress checks triggered cluster-alert-checkout-5xx.`,
+              timeline: [
+                '14:32:00 UTC - CI/CD pipeline triggered deployment of version v2.4.8 of checkout-api.',
+                '14:33:02 UTC - First checkout-api pod entered CrashLoopBackOff due to a fatal initialization config error.',
+                '14:35:15 UTC - Prometheus triggered HTTP 5xx threshold alerts.',
+                '14:41:00 UTC - ResolveOps core ingested 24 clustered alerts, suppressed noise by 95.8%, and designated SEV-1 incident inc-checkout-5xx.',
+                '14:45:00 UTC - ResolveOps Agent parsed container startup exceptions, identifying the missing environment variable. Action proposal generated.',
+                '14:52:12 UTC - Operator manually authorized remediation proposal. Automation patches ConfigMap and triggers rollout.',
+                '14:54:30 UTC - Service replicas stabilized. Active synthetic traffic probes reporting 100% charge success rate.'
+              ],
+              rootCause: `The helm values template for version v2.4.8 lacked parameter mapping definitions for the required PAYMENT_GATEWAY_URL environment variable during the staging overlay render.`,
+              resolution: `Patched k8s ConfigMap manually via script and performed zero-downtime kubectl rollout restart deployment/checkout-api.`,
+              contributingFactors: [
+                'The staging environment variables configuration lacked schema integration tests.',
+                'Checkout-api was programmed to crash-loop rather than degrade gracefully if payment endpoints were unreachable.'
+              ],
+              followUpActions: [
+                'Add static configuration schema analysis to CI/CD pipeline tests.',
+                'Implement fallback mock pathways in checkout-api to permit testing during gateway outages.'
+              ]
+            };
 
-          return {
-            ...inc,
-            hasPostmortem: true,
-            postmortem: generatedPostmortem,
-            updatedAt: new Date().toISOString()
-          };
-        }
-        return inc;
-      })
-    );
+            return {
+              ...inc,
+              hasPostmortem: true,
+              postmortem: generatedPostmortem,
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return inc;
+        })
+      );
 
-    // Append Timeline Event
-    const pmTimeline: TimelineEvent = {
-      id: `evt-pm-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      type: 'Agent',
-      title: 'Postmortem Report Synthesized',
-      description: 'The autonomous Agent compiled cluster telemetry, timelines, and action metrics into a post-incident review report.'
-    };
-    setTimelineEventsMap(prev => ({
-      ...prev,
-      [incidentId]: [...(prev[incidentId] || []), pmTimeline]
-    }));
+      // Append Timeline Event
+      const pmTimeline: TimelineEvent = {
+        id: `evt-pm-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: 'Agent',
+        title: 'Postmortem Report Synthesized',
+        description: 'The autonomous Agent compiled cluster telemetry, timelines, and action metrics into a post-incident review report.'
+      };
+      setTimelineEventsMap(prev => ({
+        ...prev,
+        [incidentId]: [...(prev[incidentId] || []), pmTimeline]
+      }));
+    } else {
+      // Supabase mode: Create database audit event for postmortem generation
+      try {
+        const { data: { user } } = await supabase!.auth.getUser();
+        const userId = user?.id;
+        if (!userId) throw new Error('No authenticated user session found');
+
+        await createAuditEvent({
+          user_id: userId,
+          incident_id: incidentId,
+          actor_type: 'Agent',
+          actor_name: 'ResolveOps Agent',
+          event_type: 'Postmortem Report Synthesized',
+          description: 'The autonomous Agent compiled cluster telemetry, timelines, and action metrics into a post-incident review report.',
+          result: 'Postmortem Report Synthesized'
+        });
+        await fetchSupabaseIncidents();
+      } catch (err) {
+        console.error('[App] Error creating postmortem audit event:', err);
+      }
+    }
   };
 
   // Interactive Test Incident Generator Flow
