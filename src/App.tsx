@@ -38,6 +38,7 @@ export default function App() {
     return sessionStorage.getItem('resolveops_demo_user');
   });
   const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
   const [activeScreen, setActiveScreen] = useState<'dashboard' | 'incidents' | 'audit' | 'incident-detail'>('dashboard');
   const [activeIncidentId, setActiveIncidentId] = useState<string | null>(null);
 
@@ -149,7 +150,11 @@ export default function App() {
 
     let subscription: { unsubscribe: () => void } | null = null;
     if (supabase) {
-      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsRecoveringPassword(true);
+        }
+
         if (session?.user) {
           setUserEmail(session.user.email ?? null);
           sessionStorage.removeItem('resolveops_demo_user');
@@ -584,6 +589,19 @@ export default function App() {
           <span className="text-xs font-mono text-zinc-500">Retrieving active session...</span>
         </div>
       </div>
+    );
+  }
+
+  if (isRecoveringPassword) {
+    return (
+      <SignIn 
+        onSignIn={handleSignIn} 
+        initialRecoveryMode={true} 
+        onRecoveryComplete={async () => {
+          setIsRecoveringPassword(false);
+          await handleSignOut();
+        }} 
+      />
     );
   }
 

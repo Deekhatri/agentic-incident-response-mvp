@@ -4,20 +4,34 @@
  */
 
 import React, { useState } from 'react';
-import { Terminal, Shield, Lock, ArrowRight, Server, Key, User, Mail, Loader2, CheckCircle } from 'lucide-react';
+import { Terminal, Shield, Lock, ArrowRight, Server, Key, User, Mail, Loader2, CheckCircle, ChevronLeft } from 'lucide-react';
 import { SupabaseConnectionStatus } from './SupabaseConnectionStatus';
 import { supabase } from '../lib/supabase';
 
 interface SignInProps {
   onSignIn: (email: string) => void;
+  initialRecoveryMode?: boolean;
+  onRecoveryComplete?: () => void;
 }
 
-export const SignIn: React.FC<SignInProps> = ({ onSignIn }) => {
-  const [isSignUp, setIsSignUp] = useState(false);
+export const SignIn: React.FC<SignInProps> = ({ 
+  onSignIn,
+  initialRecoveryMode = false,
+  onRecoveryComplete
+}) => {
+  // Support modes: 'signin', 'signup', 'forgot', 'recovery'
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'recovery'>(
+    initialRecoveryMode ? 'recovery' : 'signin'
+  );
+
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
+  // Recovery password states
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -35,7 +49,7 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn }) => {
     }
 
     try {
-      if (isSignUp) {
+      if (mode === 'signup') {
         // Sign Up Flow
         if (!fullName.trim()) {
           setError('Full Name is required.');
@@ -84,13 +98,14 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn }) => {
             }, 1200);
           } else {
             setSuccessMessage('Registration successful! Please check your email inbox to confirm registration.');
-            // Clear passwords to prepare for sign in
+            // Clear fields
             setPassword('');
+            setFullName('');
           }
         } else {
           setSuccessMessage('Registration initiated. Please verify your email inbox.');
         }
-      } else {
+      } else if (mode === 'signin') {
         // Sign In Flow
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email,
@@ -106,6 +121,56 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn }) => {
         if (data?.user) {
           onSignIn(data.user.email || email);
         }
+      } else if (mode === 'forgot') {
+        // Password Reset Request Flow
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/`
+        });
+
+        if (resetError) {
+          setError(resetError.message);
+          setIsLoading(false);
+          return;
+        }
+
+        setSuccessMessage('Password reset email sent. Check your inbox.');
+        // Clear fields
+        setEmail('');
+      } else if (mode === 'recovery') {
+        // Update/Set New Password Flow
+        if (newPassword.length < 8) {
+          setError('Password must be at least 8 characters long.');
+          setIsLoading(false);
+          return;
+        }
+
+        if (newPassword !== confirmPassword) {
+          setError('Passwords do not match. Please verify.');
+          setIsLoading(false);
+          return;
+        }
+
+        const { error: updateError } = await supabase.auth.updateUser({
+          password: newPassword
+        });
+
+        if (updateError) {
+          setError(updateError.message);
+          setIsLoading(false);
+          return;
+        }
+
+        setSuccessMessage('Password updated successfully. Returning to operator portal...');
+        setTimeout(() => {
+          if (onRecoveryComplete) {
+            onRecoveryComplete();
+          } else {
+            setMode('signin');
+            setNewPassword('');
+            setConfirmPassword('');
+            setSuccessMessage(null);
+          }
+        }, 2200);
       }
     } catch (err: any) {
       setError(err?.message || 'Authentication system failure.');
@@ -120,11 +185,18 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn }) => {
     onSignIn('demo-operator@resolveops.io');
   };
 
-  const toggleAuthMode = () => {
-    setIsSignUp(!isSignUp);
-    setError(null);
-    setSuccessMessage(null);
-    setPassword('');
+  const getSubTitleText = () => {
+    switch (mode) {
+      case 'signup':
+        return 'Register your profile in the cluster auth directory to secure your remediation capabilities.';
+      case 'forgot':
+        return 'Initiate secure password recovery by specifying your registered operator account email.';
+      case 'recovery':
+        return 'Define a highly secure new password passphrase for your cluster operator login.';
+      case 'signin':
+      default:
+        return 'Authenticate using your cluster credentials to access active self-healing runtimes.';
+    }
   };
 
   return (
@@ -146,14 +218,24 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn }) => {
         {/* Form area */}
         <div className="p-6 space-y-5">
           <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-zinc-900 font-sans">
-              {isSignUp ? 'Create Operator Account' : 'Operator Authentication'}
+            <h3 className="text-sm font-semibold text-zinc-900 font-sans flex items-center gap-1.5">
+              {mode === 'forgot' && (
+                <button 
+                  type="button" 
+                  onClick={() => { setMode('signin'); setError(null); setSuccessMessage(null); }}
+                  className="p-1 hover:bg-zinc-100 rounded-full transition-colors mr-0.5"
+                  title="Return to sign in"
+                >
+                  <ChevronLeft className="w-4 h-4 text-zinc-600" />
+                </button>
+              )}
+              {mode === 'signin' && 'Operator Authentication'}
+              {mode === 'signup' && 'Create Operator Account'}
+              {mode === 'forgot' && 'Reset Operator Passphrase'}
+              {mode === 'recovery' && 'Establish New Passphrase'}
             </h3>
             <p className="text-xs text-zinc-500 font-sans leading-relaxed">
-              {isSignUp 
-                ? 'Register your profile in the cluster auth directory to secure your remediation capabilities.'
-                : 'Authenticate using your cluster credentials to access active self-healing runtimes.'
-              }
+              {getSubTitleText()}
             </p>
           </div>
 
@@ -179,7 +261,7 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn }) => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isSignUp && (
+            {mode === 'signup' && (
               <div className="space-y-1.5">
                 <label className="block text-xs font-mono font-bold uppercase text-zinc-500 tracking-wide">
                   OPERATOR FULL NAME
@@ -198,39 +280,96 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn }) => {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-mono font-bold uppercase text-zinc-500 tracking-wide">
-                OPERATOR EMAIL
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@company.com"
-                  className="w-full text-xs font-mono p-2.5 pl-9 bg-zinc-50 border border-zinc-300 rounded-md shadow-xs focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 outline-hidden text-zinc-800"
-                />
-                <Mail className="w-4 h-4 text-zinc-400 absolute left-3 top-3" />
+            {(mode === 'signin' || mode === 'signup' || mode === 'forgot') && (
+              <div className="space-y-1.5">
+                <label className="block text-xs font-mono font-bold uppercase text-zinc-500 tracking-wide">
+                  OPERATOR EMAIL
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@company.com"
+                    className="w-full text-xs font-mono p-2.5 pl-9 bg-zinc-50 border border-zinc-300 rounded-md shadow-xs focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 outline-hidden text-zinc-800"
+                  />
+                  <Mail className="w-4 h-4 text-zinc-400 absolute left-3 top-3" />
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-mono font-bold uppercase text-zinc-500 tracking-wide">
-                PASSPHRASE
-              </label>
-              <div className="relative">
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full text-xs font-mono p-2.5 pl-9 bg-zinc-50 border border-zinc-300 rounded-md shadow-xs focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 outline-hidden text-zinc-800"
-                />
-                <Lock className="w-4 h-4 text-zinc-400 absolute left-3 top-3" />
+            {(mode === 'signin' || mode === 'signup') && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="block text-xs font-mono font-bold uppercase text-zinc-500 tracking-wide">
+                    PASSPHRASE
+                  </label>
+                  {mode === 'signin' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('forgot');
+                        setError(null);
+                        setSuccessMessage(null);
+                      }}
+                      className="text-xxs font-mono text-zinc-500 hover:text-zinc-900 underline underline-offset-4 cursor-pointer"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full text-xs font-mono p-2.5 pl-9 bg-zinc-50 border border-zinc-300 rounded-md shadow-xs focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 outline-hidden text-zinc-800"
+                  />
+                  <Lock className="w-4 h-4 text-zinc-400 absolute left-3 top-3" />
+                </div>
               </div>
-            </div>
+            )}
+
+            {mode === 'recovery' && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-mono font-bold uppercase text-zinc-500 tracking-wide">
+                    NEW PASSPHRASE (MIN 8 CHARS)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full text-xs font-mono p-2.5 pl-9 bg-zinc-50 border border-zinc-300 rounded-md shadow-xs focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 outline-hidden text-zinc-800"
+                    />
+                    <Lock className="w-4 h-4 text-zinc-400 absolute left-3 top-3" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-mono font-bold uppercase text-zinc-500 tracking-wide">
+                    CONFIRM NEW PASSPHRASE
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full text-xs font-mono p-2.5 pl-9 bg-zinc-50 border border-zinc-300 rounded-md shadow-xs focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 outline-hidden text-zinc-800"
+                    />
+                    <Lock className="w-4 h-4 text-zinc-400 absolute left-3 top-3" />
+                  </div>
+                </div>
+              </>
+            )}
 
             <button
               type="submit"
@@ -240,34 +379,61 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn }) => {
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  Processing Authentication...
+                  Processing...
                 </>
-              ) : isSignUp ? (
+              ) : mode === 'signup' ? (
                 <>
                   Register New Account
                   <ArrowRight className="w-4 h-4" />
                 </>
-              ) : (
+              ) : mode === 'signin' ? (
                 <>
                   Authenticate Operator
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              ) : mode === 'forgot' ? (
+                <>
+                  Send Recovery Dispatch
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              ) : (
+                <>
+                  Save New Password
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Toggle between sign in and sign up */}
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={toggleAuthMode}
-              className="text-xs font-mono text-zinc-500 hover:text-zinc-900 underline underline-offset-4 cursor-pointer"
-            >
-              {isSignUp 
-                ? 'Already have an account? Sign In' 
-                : 'Need a persistent profile? Create Operator Account'}
-            </button>
-          </div>
+          {/* Toggle between states */}
+          {mode !== 'recovery' && (
+            <div className="text-center">
+              {mode === 'forgot' ? (
+                <button
+                  type="button"
+                  onClick={() => { setMode('signin'); setError(null); setSuccessMessage(null); }}
+                  className="text-xs font-mono text-zinc-500 hover:text-zinc-900 underline underline-offset-4 cursor-pointer"
+                >
+                  Back to Sign In
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode(mode === 'signin' ? 'signup' : 'signin');
+                    setError(null);
+                    setSuccessMessage(null);
+                    setPassword('');
+                  }}
+                  className="text-xs font-mono text-zinc-500 hover:text-zinc-900 underline underline-offset-4 cursor-pointer"
+                >
+                  {mode === 'signin' 
+                    ? 'Need a persistent profile? Create Operator Account' 
+                    : 'Already have an account? Sign In'}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Separation line */}
           <div className="relative flex py-1 items-center">
