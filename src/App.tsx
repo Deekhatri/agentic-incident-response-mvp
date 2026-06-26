@@ -4,13 +4,14 @@
  */
 
 import { useState, useEffect } from 'react';
+import { ShieldAlert } from 'lucide-react';
 import { SignIn } from './components/SignIn';
 import { Sidebar } from './components/Sidebar';
 import { OverviewDashboard } from './components/OverviewDashboard';
 import { IncidentsList } from './components/IncidentsList';
 import { AuditLogView } from './components/AuditLogView';
 import { IncidentDetail } from './components/IncidentDetail';
-import { supabase } from './lib/supabase';
+import { supabase, listIncidents, createTestIncident, getIncident } from './lib/supabase';
 import { 
   Incident, 
   Alert, 
@@ -54,6 +55,10 @@ export default function App() {
   // Simulation state for alert storm generation
   const [isGeneratingTest, setIsGeneratingTest] = useState(false);
   const [testAlertsStream, setTestAlertsStream] = useState<Alert[]>([]);
+
+  // Database loading & error states
+  const [isDbLoading, setIsDbLoading] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   // Initialize state from deep clone
   const initializeDemoState = () => {
@@ -174,6 +179,52 @@ export default function App() {
       }
     };
   }, []);
+
+  const isDemoMode = !supabase || userEmail === 'demo-operator@resolveops.io';
+
+  const fetchSupabaseIncidents = async () => {
+    if (isDemoMode) {
+      return;
+    }
+    setIsDbLoading(true);
+    setDbError(null);
+    try {
+      const dbIncidents = await listIncidents();
+      setIncidents(dbIncidents);
+
+      // Pre-populate alerts if empty
+      setAlerts(prev => prev.length === 0 ? JSON.parse(JSON.stringify(INITIAL_ALERTS)) : prev);
+
+      // Pre-populate timeline events for any Supabase incidents so they are interactive
+      setTimelineEventsMap(prev => {
+        const nextMap = { ...prev };
+        dbIncidents.forEach(inc => {
+          if (!nextMap[inc.id]) {
+            nextMap[inc.id] = TEST_INCIDENT_TIMELINE_EVENTS.map(evt => ({
+              ...evt,
+              id: `${inc.id}-${evt.id}`
+            }));
+          }
+        });
+        return nextMap;
+      });
+    } catch (err: any) {
+      console.error('Failed to fetch incidents from Supabase:', err);
+      setDbError(err.message || 'Database connection error');
+    } finally {
+      setIsDbLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userEmail) {
+      if (isDemoMode) {
+        initializeDemoState();
+      } else {
+        fetchSupabaseIncidents();
+      }
+    }
+  }, [userEmail, isDemoMode]);
 
   // Determine system cluster health from active incidents
   const getOverallSystemHealth = (): SystemHealthStatus => {
@@ -458,70 +509,107 @@ export default function App() {
   };
 
   // Interactive Test Incident Generator Flow
-  const handleGenerateTestIncident = () => {
+  const handleGenerateTestIncident = async () => {
     if (isGeneratingTest) return;
 
-    setIsGeneratingTest(true);
-    setTestAlertsStream([]);
+    if (isDemoMode) {
+      setIsGeneratingTest(true);
+      setTestAlertsStream([]);
 
-    // Stream alerts step by step for immersion (one every 150ms)
-    let currentIdx = 0;
-    const intervalId = setInterval(() => {
-      if (currentIdx < TEST_INCIDENT_ALERTS_FLOW.length) {
-        const nextAlert = TEST_INCIDENT_ALERTS_FLOW[currentIdx];
-        setTestAlertsStream(prev => [nextAlert, ...prev]);
-        currentIdx++;
-      } else {
-        clearInterval(intervalId);
-        
-        // Finalize test incident generation
-        const newIncident = createMockTestIncident();
-        
-        setIncidents(prev => [newIncident, ...prev]);
-        setAlerts(prev => [...TEST_INCIDENT_ALERTS_FLOW, ...prev]);
-        
-        // Append Audit Log
-        const testIncidentAudit: AuditLogEntry = {
-          id: `aud-test-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          actor: 'ResolveOps Agent',
-          actorType: 'Agent',
-          action: 'Correlated telemetry storm',
-          incidentTitle: newIncident.title,
-          result: `Grouped 15 raw broker alerts into ${newIncident.id}. Noise suppressed by 93.3%.`
-        };
-
-        const testIncidentProposalAudit: AuditLogEntry = {
-          id: `aud-test-prop-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          actor: 'ResolveOps Agent',
-          actorType: 'Agent',
-          action: 'Created Remediation Proposal',
-          incidentTitle: newIncident.title,
-          result: `Proposed AMQP credential hot-patch. Awaiting authorization.`
-        };
-
-        setAuditLogs(prev => [testIncidentProposalAudit, testIncidentAudit, ...prev]);
-
-        // Map timeline events
-        setTimelineEventsMap(prev => ({
-          ...prev,
-          [TEST_INCIDENT_ID]: TEST_INCIDENT_TIMELINE_EVENTS
-        }));
-
-        // Add recent activity
-        setRecentActivities(prev => [
-          {
-            id: `act-test-${Date.now()}`,
+      // Stream alerts step by step for immersion (one every 150ms)
+      let currentIdx = 0;
+      const intervalId = setInterval(() => {
+        if (currentIdx < TEST_INCIDENT_ALERTS_FLOW.length) {
+          const nextAlert = TEST_INCIDENT_ALERTS_FLOW[currentIdx];
+          setTestAlertsStream(prev => [nextAlert, ...prev]);
+          currentIdx++;
+        } else {
+          clearInterval(intervalId);
+          
+          // Finalize test incident generation
+          const newIncident = createMockTestIncident();
+          
+          setIncidents(prev => [newIncident, ...prev]);
+          setAlerts(prev => [...TEST_INCIDENT_ALERTS_FLOW, ...prev]);
+          
+          // Append Audit Log
+          const testIncidentAudit: AuditLogEntry = {
+            id: `aud-test-${Date.now()}`,
             timestamp: new Date().toISOString(),
-            message: `Autonomously correlated 15 alerts for notification-worker.`
-          },
-          ...prev
-        ]);
+            actor: 'ResolveOps Agent',
+            actorType: 'Agent',
+            action: 'Correlated telemetry storm',
+            incidentTitle: newIncident.title,
+            result: `Grouped 15 raw broker alerts into ${newIncident.id}. Noise suppressed by 93.3%.`
+          };
 
+          const testIncidentProposalAudit: AuditLogEntry = {
+            id: `aud-test-prop-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            actor: 'ResolveOps Agent',
+            actorType: 'Agent',
+            action: 'Created Remediation Proposal',
+            incidentTitle: newIncident.title,
+            result: `Proposed AMQP credential hot-patch. Awaiting authorization.`
+          };
+
+          setAuditLogs(prev => [testIncidentProposalAudit, testIncidentAudit, ...prev]);
+
+          // Map timeline events
+          setTimelineEventsMap(prev => ({
+            ...prev,
+            [TEST_INCIDENT_ID]: TEST_INCIDENT_TIMELINE_EVENTS
+          }));
+
+          // Add recent activity
+          setRecentActivities(prev => [
+            {
+              id: `act-test-${Date.now()}`,
+              timestamp: new Date().toISOString(),
+              message: `Autonomously correlated 15 alerts for notification-worker.`
+            },
+            ...prev
+          ]);
+
+          setIsGeneratingTest(false);
+        }
+      }, 150);
+    } else {
+      if (!supabase) return;
+      setIsGeneratingTest(true);
+      setDbError(null);
+      try {
+        console.log('[App] Retrieving Supabase user session for test incident...');
+        const { data: { session } } = await supabase.auth.getSession();
+        let user = session?.user;
+
+        if (!user) {
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          user = authUser;
+        }
+
+        if (!user) {
+          throw new Error('No active user session found. Please verify you are authenticated via Supabase.');
+        }
+
+        console.log('[App] Calling createTestIncident with user_id:', user.id);
+        const newIncident = await createTestIncident(user.id);
+        
+        console.log('[App] Refreshing incident list after successful insertion...');
+        // Refresh incident list
+        await fetchSupabaseIncidents();
+
+        console.log('[App] Loading detail page for newly saved incident:', newIncident.id);
+        // Open newly created incident
+        setActiveIncidentId(newIncident.id);
+        setActiveScreen('incident-detail');
+      } catch (err: any) {
+        console.error('Failed to generate test incident in Supabase:', err);
+        setDbError(err.message || 'Error occurred during persistent incident creation.');
+      } finally {
         setIsGeneratingTest(false);
       }
-    }, 150);
+    }
   };
 
   // Reset Demo State
@@ -533,6 +621,64 @@ export default function App() {
 
   // Main UI Screen switching
   const renderMainContent = () => {
+    if (isDbLoading && incidents.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center p-12 min-h-[400px] border border-dashed border-zinc-200 rounded-lg bg-white space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900"></div>
+          <div className="text-center space-y-1">
+            <h4 className="text-xs font-mono font-bold uppercase text-zinc-800">CONNECTING TO SUPABASE</h4>
+            <p className="text-xs text-zinc-500 font-sans">Querying active incidents from the central operational register...</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (dbError) {
+      const isInsertError = dbError.toLowerCase().includes('failed') || 
+                            dbError.toLowerCase().includes('incident') || 
+                            dbError.toLowerCase().includes('insertion') ||
+                            dbError.toLowerCase().includes('row');
+
+      return (
+        <div className="p-8 border border-red-200 rounded-lg bg-red-50/50 space-y-4 max-w-2xl mx-auto my-8">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-red-100 border border-red-200 text-red-600 rounded">
+              <ShieldAlert className="w-5 h-5 text-red-500 shrink-0" />
+            </div>
+            <div>
+              <h4 className="text-sm font-mono font-bold uppercase text-red-800 tracking-wider">
+                {isInsertError ? 'INCIDENT GENERATION ERROR' : 'DATABASE CONNECTION ERROR'}
+              </h4>
+              <p className="text-xs text-zinc-700 mt-1 font-sans">{dbError}</p>
+            </div>
+          </div>
+          <div className="pt-2 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={fetchSupabaseIncidents}
+              className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-xs font-mono font-medium transition-colors cursor-pointer"
+            >
+              Retry Connection
+            </button>
+            <button
+              type="button"
+              onClick={() => setDbError(null)}
+              className="px-4 py-2 bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-700 rounded text-xs font-mono font-medium transition-colors cursor-pointer"
+            >
+              Dismiss
+            </button>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="px-4 py-2 bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-700 rounded text-xs font-mono font-medium transition-colors cursor-pointer"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     switch (activeScreen) {
       case 'dashboard':
         return (

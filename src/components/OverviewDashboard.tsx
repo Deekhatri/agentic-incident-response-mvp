@@ -56,7 +56,9 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   const awaitingApprovalCount = incidents.filter(inc => inc.remediationStatus === 'Pending Approval').length;
   
   // Hardcoded or computed overall stats
-  const totalAlertsReceived = incidents.reduce((acc, inc) => acc + inc.alertCount, 0) + 124; // base received + mock drift
+  const totalAlertsReceived = incidents.length > 0
+    ? incidents.reduce((acc, inc) => acc + inc.alertCount, 0) + 124
+    : 0;
   const groupedAlerts = incidents.reduce((acc, inc) => acc + inc.alertCount, 0);
   const noiseReductionPercentage = totalAlertsReceived > 0 
     ? ((groupedAlerts / totalAlertsReceived) * 100).toFixed(1) 
@@ -192,14 +194,16 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-zinc-800">
                 Active Incidents Log
               </h3>
-              <button 
-                type="button" 
-                onClick={() => onSelectIncident(incidents[0].id)} 
-                className="text-xs font-mono font-medium text-zinc-500 hover:text-zinc-950 flex items-center gap-1 cursor-pointer"
-              >
-                View Details
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              {incidents.length > 0 && (
+                <button 
+                  type="button" 
+                  onClick={() => onSelectIncident(incidents[0].id)} 
+                  className="text-xs font-mono font-medium text-zinc-500 hover:text-zinc-950 flex items-center gap-1 cursor-pointer"
+                >
+                  View Details
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             <div className="overflow-x-auto">
@@ -214,50 +218,60 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                     <th className="py-3 px-4 font-bold">ACTIONS</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-200/60 font-sans">
-                  {incidents.map((inc) => (
-                    <tr 
-                      key={inc.id} 
-                      className={`hover:bg-zinc-50/50 transition-colors ${
-                        inc.status === 'Resolved' ? 'opacity-65' : ''
-                      }`}
-                    >
-                      <td className="py-3.5 px-4 font-medium text-zinc-900">
-                        <div className="max-w-xs sm:max-w-sm truncate" title={inc.title}>
-                          {inc.title}
-                        </div>
-                        <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
-                          ID: {inc.id} • Grouped: {inc.alertCount} alerts
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <code className="text-xxs px-1.5 py-0.5 bg-zinc-100 border border-zinc-200 text-zinc-800 font-mono rounded">
-                          {inc.service}
-                        </code>
-                        <span className="text-xxs font-mono text-zinc-400 block mt-1">
-                          Env: {inc.environment}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <SeverityBadge severity={inc.severity} />
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <StatusBadge status={inc.status} />
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <ConfidenceScore score={inc.confidence} />
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <button
-                          type="button"
-                          onClick={() => onSelectIncident(inc.id)}
-                          className="px-2 py-1 bg-zinc-100 border border-zinc-200 hover:bg-zinc-900 hover:text-white rounded text-[10px] font-mono font-medium transition-all cursor-pointer"
-                        >
-                          Investigate
-                        </button>
+                 <tbody className="divide-y divide-zinc-200/60 font-sans">
+                  {incidents.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-zinc-500 font-sans">
+                        <ShieldAlert className="w-8 h-8 text-zinc-300 mx-auto mb-2" />
+                        <span className="block font-medium text-zinc-900 text-xs">No active incidents found</span>
+                        <span className="block text-[11px] text-zinc-500 mt-0.5">Generate a test incident to begin tracking cluster alerts.</span>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    incidents.map((inc) => (
+                      <tr 
+                        key={inc.id} 
+                        className={`hover:bg-zinc-50/50 transition-colors ${
+                          inc.status === 'Resolved' ? 'opacity-65' : ''
+                        }`}
+                      >
+                        <td className="py-3.5 px-4 font-medium text-zinc-900">
+                          <div className="max-w-xs sm:max-w-sm truncate" title={inc.title}>
+                            {inc.title}
+                          </div>
+                          <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
+                            ID: {inc.id} • Grouped: {inc.alertCount} alerts
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <code className="text-xxs px-1.5 py-0.5 bg-zinc-100 border border-zinc-200 text-zinc-800 font-mono rounded">
+                            {inc.service}
+                          </code>
+                          <span className="text-xxs font-mono text-zinc-400 block mt-1">
+                            Env: {inc.environment}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <SeverityBadge severity={inc.severity} />
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <StatusBadge status={inc.status} />
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <ConfidenceScore score={inc.confidence} />
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <button
+                            type="button"
+                            onClick={() => onSelectIncident(inc.id)}
+                            className="px-2 py-1 bg-zinc-100 border border-zinc-200 hover:bg-zinc-900 hover:text-white rounded text-[10px] font-mono font-medium transition-all cursor-pointer"
+                          >
+                            Investigate
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
