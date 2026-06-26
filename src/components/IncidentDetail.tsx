@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Layers, 
@@ -18,7 +18,8 @@ import {
   Search,
   CheckCircle2,
   Terminal,
-  AlertTriangle
+  AlertTriangle,
+  BellOff
 } from 'lucide-react';
 import { Incident, Alert, TimelineEvent as TimelineEventType } from '../types';
 import { SeverityBadge } from './SeverityBadge';
@@ -29,10 +30,12 @@ import { ActionProposal } from './ActionProposal';
 import { ApprovalControls } from './ApprovalControls';
 import { TimelineEvent } from './TimelineEvent';
 import { PostmortemSection } from './PostmortemSection';
+import { listIncidentAlerts } from '../lib/supabase';
 
 interface IncidentDetailProps {
   incident: Incident;
   alerts: Alert[];
+  isDemoMode?: boolean;
   timelineEvents: TimelineEventType[];
   onBack: () => void;
   onApproveRemediation: (id: string) => void;
@@ -43,6 +46,7 @@ interface IncidentDetailProps {
 export const IncidentDetail: React.FC<IncidentDetailProps> = ({
   incident,
   alerts,
+  isDemoMode = true,
   timelineEvents,
   onBack,
   onApproveRemediation,
@@ -52,11 +56,39 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'alerts' | 'timeline' | 'postmortem'>('overview');
   const [alertSearch, setAlertSearch] = useState('');
 
+  const [dbAlerts, setDbAlerts] = useState<Alert[]>([]);
+  const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
+
+  const loadSupabaseAlerts = async () => {
+    if (isDemoMode) return;
+    setIsLoadingAlerts(true);
+    setAlertsError(null);
+    try {
+      console.log('[IncidentDetail] Fetching Supabase alerts for incident ID:', incident.id);
+      const fetchedAlerts = await listIncidentAlerts(incident.id);
+      setDbAlerts(fetchedAlerts);
+    } catch (err: any) {
+      console.error('[IncidentDetail] Error loading alerts from Supabase:', err);
+      setAlertsError(err.message || 'Failed to load database alerts.');
+    } finally {
+      setIsLoadingAlerts(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSupabaseAlerts();
+  }, [incident.id, isDemoMode]);
+
+  const displayAlerts = isDemoMode ? alerts : dbAlerts;
+
   // Filter alerts associated with this incident's service
-  const associatedAlerts = alerts.filter(alt => 
-    alt.service === incident.service &&
-    alt.message.toLowerCase().includes(alertSearch.toLowerCase())
-  );
+  const associatedAlerts = displayAlerts.filter(alt => {
+    const matchesService = isDemoMode ? (alt.service === incident.service) : true;
+    const matchesSearch = alt.message.toLowerCase().includes(alertSearch.toLowerCase()) ||
+                          alt.source.toLowerCase().includes(alertSearch.toLowerCase());
+    return matchesService && matchesSearch;
+  });
 
   const getSystemHealthBadge = () => {
     switch (incident.systemHealth) {
@@ -303,43 +335,73 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
               </div>
             </div>
 
-            {/* Alerts Table */}
-            <div className="overflow-x-auto border border-zinc-200 rounded-lg">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-zinc-50 border-b border-zinc-200 text-zinc-500 font-mono">
-                    <th className="py-2.5 px-3 font-bold">SOURCE</th>
-                    <th className="py-2.5 px-3 font-bold">SEVERITY</th>
-                    <th className="py-2.5 px-3 font-bold">ALERT MESSAGE</th>
-                    <th className="py-2.5 px-3 font-bold">TIMESTAMP</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200/60 font-sans">
-                  {associatedAlerts.map((alt) => (
-                    <tr key={alt.id} className="hover:bg-zinc-50/40">
-                      <td className="py-2.5 px-3 font-mono font-semibold text-zinc-800">
-                        {alt.source}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className={`inline-block px-1.5 py-0.25 rounded text-[10px] font-mono font-medium ${
-                          alt.severity === 'Critical' 
-                            ? 'bg-red-50 text-red-700 border border-red-200' 
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
-                          {alt.severity}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-zinc-700 leading-relaxed max-w-sm md:max-w-md truncate" title={alt.message}>
-                        {alt.message}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-zinc-400 text-xxs">
-                        {alt.timestamp.includes('T') ? new Date(alt.timestamp).toLocaleTimeString() : alt.timestamp}
-                      </td>
+            {/* Alerts Table / Loading / Error / Empty States */}
+            {isLoadingAlerts ? (
+              <div className="flex flex-col items-center justify-center p-12 border border-zinc-200 rounded-lg bg-white space-y-3">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-900"></div>
+                <p className="text-xs text-zinc-500 font-sans">Querying telemetry alerts from the database...</p>
+              </div>
+            ) : alertsError ? (
+              <div className="p-6 border border-red-200 rounded-lg bg-red-50/50 flex flex-col items-center justify-center text-center space-y-3">
+                <div className="text-red-500">
+                  <ShieldAlert className="w-8 h-8 mx-auto" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-mono font-bold uppercase text-red-800">Alert Query Failed</h4>
+                  <p className="text-xs text-zinc-600 mt-1 font-sans">{alertsError}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadSupabaseAlerts}
+                  className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-xs font-mono font-medium transition-colors cursor-pointer"
+                >
+                  Retry Query
+                </button>
+              </div>
+            ) : associatedAlerts.length === 0 ? (
+              <div className="p-12 border border-zinc-200 rounded-lg bg-zinc-50/50 text-center space-y-2">
+                <BellOff className="w-8 h-8 text-zinc-300 mx-auto" />
+                <h4 className="text-xs font-mono font-bold uppercase text-zinc-800">No Alerts Correlated</h4>
+                <p className="text-xs text-zinc-500 font-sans">No telemetry alerts match the search criteria or were logged for this event.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-zinc-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-zinc-50 border-b border-zinc-200 text-zinc-500 font-mono">
+                      <th className="py-2.5 px-3 font-bold">SOURCE</th>
+                      <th className="py-2.5 px-3 font-bold">SEVERITY</th>
+                      <th className="py-2.5 px-3 font-bold">ALERT MESSAGE</th>
+                      <th className="py-2.5 px-3 font-bold">TIMESTAMP</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200/60 font-sans">
+                    {associatedAlerts.map((alt) => (
+                      <tr key={alt.id} className="hover:bg-zinc-50/40">
+                        <td className="py-2.5 px-3 font-mono font-semibold text-zinc-800">
+                          {alt.source}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className={`inline-block px-1.5 py-0.25 rounded text-[10px] font-mono font-medium ${
+                            alt.severity === 'Critical' 
+                              ? 'bg-red-50 text-red-700 border border-red-200' 
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            {alt.severity}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-zinc-700 leading-relaxed max-w-sm md:max-w-md truncate" title={alt.message}>
+                          {alt.message}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-zinc-400 text-xxs">
+                          {alt.timestamp.includes('T') ? new Date(alt.timestamp).toLocaleTimeString() : alt.timestamp}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
