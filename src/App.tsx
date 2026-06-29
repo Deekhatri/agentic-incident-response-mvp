@@ -95,6 +95,7 @@ export default function App() {
   const [activeIncidentId, setActiveIncidentId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'alerts' | 'timeline' | 'postmortem'>('overview');
   const [hasLoadedData, setHasLoadedData] = useState(false);
+  const [isRestoringRoute, setIsRestoringRoute] = useState(true);
 
   // Deep cloned state for incidents, alerts, audit log, and timeline map to allow pristine resets
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -297,24 +298,35 @@ export default function App() {
 
   const activeIncident = incidents.find(inc => inc.id === activeIncidentId);
 
-  // On mount or when userEmail becomes available, parse initial hash
+  // Restore route once session and data are loaded
   useEffect(() => {
-    if (userEmail) {
+    if (isRestoringRoute && !isLoadingSession && userEmail && hasLoadedData) {
       const parsed = parseHash();
-      setActiveScreen(parsed.screen as any);
-      setActiveIncidentId(parsed.incidentId);
-      if (parsed.tab) {
-        setActiveTab(parsed.tab as any);
+      if (parsed.screen === 'incident-detail' && parsed.incidentId) {
+        setActiveIncidentId(parsed.incidentId);
+        setActiveScreen('incident-detail');
+        if (parsed.tab) {
+          setActiveTab(parsed.tab as any);
+        } else {
+          setActiveTab('overview');
+        }
       } else {
-        setActiveTab('overview');
+        if (parsed.screen === 'incident-detail') {
+          setActiveScreen('dashboard');
+          setActiveIncidentId(null);
+        } else {
+          setActiveScreen(parsed.screen as any);
+          setActiveIncidentId(null);
+        }
       }
+      setIsRestoringRoute(false);
     }
-  }, [userEmail]);
+  }, [isRestoringRoute, isLoadingSession, userEmail, hasLoadedData]);
 
   // Setup hashchange event listener
   useEffect(() => {
     const handleHashChange = () => {
-      if (!userEmail) return;
+      if (!userEmail || isRestoringRoute) return;
       const parsed = parseHash();
       setActiveScreen(parsed.screen as any);
       setActiveIncidentId(parsed.incidentId);
@@ -329,11 +341,11 @@ export default function App() {
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, [userEmail]);
+  }, [userEmail, isRestoringRoute]);
 
   // Sync state to hash
   useEffect(() => {
-    if (!userEmail) return;
+    if (!userEmail || isRestoringRoute) return;
 
     let targetHash = '#/dashboard';
     if (activeScreen === 'dashboard') {
@@ -352,12 +364,13 @@ export default function App() {
     if (window.location.hash !== targetHash) {
       window.location.hash = targetHash;
     }
-  }, [activeScreen, activeIncidentId, activeTab, userEmail]);
+  }, [activeScreen, activeIncidentId, activeTab, userEmail, isRestoringRoute]);
 
   // Authentication Handlers
   const handleSignIn = (email: string) => {
     setUserEmail(email);
-    setActiveScreen('dashboard');
+    setIsRestoringRoute(true);
+    setHasLoadedData(false);
   };
 
   const handleSignOut = async () => {
@@ -372,6 +385,8 @@ export default function App() {
     setUserEmail(null);
     setActiveIncidentId(null);
     setActiveScreen('dashboard');
+    setIsRestoringRoute(true);
+    setHasLoadedData(false);
   };
 
   // Sidebar screen change handler
@@ -908,6 +923,26 @@ export default function App() {
 
   // Main UI Screen switching
   const renderMainContent = () => {
+    if (isRestoringRoute) {
+      const parsed = parseHash();
+      const message = parsed.screen === 'incident-detail' && parsed.incidentId
+        ? 'Restoring incident...'
+        : 'Restoring operational view...';
+      const detail = parsed.screen === 'incident-detail' && parsed.incidentId
+        ? 'Retrieving specific incident details and postmortem data...'
+        : 'Loading dashboard widgets and incident registers...';
+
+      return (
+        <div className="flex flex-col items-center justify-center p-12 min-h-[400px] border border-dashed border-zinc-200 rounded-lg bg-white space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900"></div>
+          <div className="text-center space-y-1">
+            <h4 className="text-xs font-mono font-bold uppercase text-zinc-800">{message}</h4>
+            <p className="text-xs text-zinc-500 font-sans">{detail}</p>
+          </div>
+        </div>
+      );
+    }
+
     if (isDbLoading && incidents.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center p-12 min-h-[400px] border border-dashed border-zinc-200 rounded-lg bg-white space-y-4">
