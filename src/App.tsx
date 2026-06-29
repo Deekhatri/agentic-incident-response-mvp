@@ -29,7 +29,8 @@ import {
   getApproval,
   getRemediationDetails,
   createAuditEvent,
-  updateIncident
+  updateIncident,
+  createHypothesis
 } from './lib/supabase';
 import { 
   Incident, 
@@ -869,6 +870,25 @@ export default function App() {
         console.log('[App] Calling createTestIncident with user_id:', user.id);
         const newIncident = await createTestIncident(user.id);
         createdIncidentId = newIncident.id;
+
+        console.log('[App] Inserting root-cause hypothesis in Supabase for incident_id:', newIncident.id);
+        await createHypothesis({
+          incident_id: newIncident.id,
+          probable_cause: 'The latest checkout-api deployment is missing the PAYMENT_GATEWAY_URL environment variable.',
+          confidence_score: 92,
+          supporting_evidence: [
+            'Version v2.4.8 was deployed at 14:32.',
+            'HTTP 5xx errors increased at 14:35.',
+            'Three checkout-api pods entered CrashLoopBackOff.',
+            'Application logs show that PAYMENT_GATEWAY_URL is missing.'
+          ],
+          alternative_hypotheses: [
+            'The external payment gateway may be unavailable.',
+            'A readiness probe configuration change may be preventing healthy pod startup.'
+          ],
+          recommended_action: 'Restart checkout-api after restoring the missing environment configuration.',
+          status: 'GENERATED'
+        });
 
         console.log('[App] Inserting 24 alerts in Supabase for incident_id:', newIncident.id);
         await createIncidentAlerts(user.id, newIncident.id);

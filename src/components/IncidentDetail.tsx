@@ -30,7 +30,7 @@ import { ActionProposal } from './ActionProposal';
 import { ApprovalControls } from './ApprovalControls';
 import { TimelineEvent } from './TimelineEvent';
 import { PostmortemSection } from './PostmortemSection';
-import { listIncidentAlerts, listAuditEvents, mapRowToTimelineEvent, getRemediationDetails, createPostmortem, getPostmortem, supabase } from '../lib/supabase';
+import { listIncidentAlerts, listAuditEvents, mapRowToTimelineEvent, getRemediationDetails, createPostmortem, getPostmortem, supabase, getHypothesis, updateHypothesis } from '../lib/supabase';
 
 interface IncidentDetailProps {
   incident: Incident;
@@ -116,6 +116,30 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
   const [isLoadingPostmortem, setIsLoadingPostmortem] = useState(false);
   const [postmortemError, setPostmortemError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const [hypothesis, setHypothesis] = useState<any | null>(null);
+  const [isLoadingHypothesis, setIsLoadingHypothesis] = useState(false);
+  const [hypothesisError, setHypothesisError] = useState<string | null>(null);
+
+  const loadSupabaseHypothesis = async () => {
+    if (isDemoMode) return;
+    setIsLoadingHypothesis(true);
+    setHypothesisError(null);
+    try {
+      console.log('[IncidentDetail] Fetching Supabase hypothesis for incident:', incident.id);
+      const data = await getHypothesis(incident.id);
+      if (data) {
+        setHypothesis(data);
+      } else {
+        setHypothesis(null);
+      }
+    } catch (err: any) {
+      console.error('[IncidentDetail] Failed to load hypothesis from Supabase:', err);
+      setHypothesisError(err.message || 'Failed to load hypothesis record.');
+    } finally {
+      setIsLoadingHypothesis(false);
+    }
+  };
 
   const loadSupabaseAlerts = async () => {
     if (isDemoMode) return;
@@ -216,10 +240,38 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
     loadSupabaseAuditEvents();
     loadSupabaseRemediation();
     loadSupabasePostmortem();
+    loadSupabaseHypothesis();
   }, [incident.id, isDemoMode]);
 
   const displayAlerts = isDemoMode ? alerts : dbAlerts;
   const displayTimelineEvents = isDemoMode ? timelineEvents : dbAuditEvents;
+
+  // Derived hypothesis values
+  const displayConfidence = isDemoMode
+    ? incident.confidence
+    : (hypothesis ? Number(hypothesis.confidence_score) : null);
+
+  const displayProbableCause = isDemoMode
+    ? incident.probableCause
+    : (hypothesis ? hypothesis.probable_cause : null);
+
+  const displaySupportingEvidence = isDemoMode
+    ? incident.supportingEvidence
+    : (hypothesis ? parseJsonArray(hypothesis.supporting_evidence) : []);
+
+  const displayAlternativeHypothesis = isDemoMode
+    ? incident.alternativeHypothesis
+    : (hypothesis
+        ? (Array.isArray(hypothesis.alternative_hypotheses)
+            ? hypothesis.alternative_hypotheses.join(' Or ')
+            : (typeof hypothesis.alternative_hypotheses === 'string'
+                ? hypothesis.alternative_hypotheses
+                : ''))
+        : '');
+
+  const displayProposedRemediation = isDemoMode
+    ? incident.proposedRemediation
+    : (hypothesis ? hypothesis.recommended_action : '');
 
   // Determine mapped remediation state for presentation
   let derivedStatus = incident.remediationStatus;
@@ -424,15 +476,34 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
                   <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
                     Root-Cause Hypothesis
                   </h3>
-                  <div className="p-4 border border-zinc-200 rounded-lg space-y-3">
-                    <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
-                      <span className="text-sm font-sans font-semibold text-zinc-900">Probable Cause</span>
-                      <ConfidenceScore score={incident.confidence} size="md" />
+
+                  {hypothesisError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs flex items-center gap-2 font-sans">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
+                      <span><strong>Hypothesis Error:</strong> {hypothesisError}</span>
                     </div>
-                    <p className="text-sm font-mono text-zinc-700 bg-zinc-50 p-3 border border-zinc-200 rounded-md">
-                      {incident.probableCause}
-                    </p>
-                  </div>
+                  )}
+
+                  {isLoadingHypothesis && !hypothesis && (
+                    <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-md text-zinc-500 text-xs flex items-center gap-2 font-sans animate-pulse">
+                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-zinc-500"></div>
+                      <span>Retrieving root-cause hypothesis...</span>
+                    </div>
+                  )}
+
+                  {(!isLoadingHypothesis || hypothesis) && !hypothesisError && (
+                    <div className="p-4 border border-zinc-200 rounded-lg space-y-3">
+                      <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+                        <span className="text-sm font-sans font-semibold text-zinc-900">Probable Cause</span>
+                        {displayConfidence !== null && (
+                          <ConfidenceScore score={displayConfidence} size="md" />
+                        )}
+                      </div>
+                      <p className="text-sm font-mono text-zinc-700 bg-zinc-50 p-3 border border-zinc-200 rounded-md">
+                        {displayProbableCause || (isDemoMode ? '' : 'No hypothesis recorded.')}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Supporting evidence list */}
@@ -440,11 +511,17 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
                   <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
                     Supporting Diagnostic Evidence
                   </h3>
-                  <div className="space-y-2">
-                    {incident.supportingEvidence.map((ev, index) => (
-                      <EvidenceItem key={index} evidence={ev} index={index} />
-                    ))}
-                  </div>
+                  
+                  {(!isLoadingHypothesis || hypothesis) && !hypothesisError && (
+                    <div className="space-y-2">
+                      {displaySupportingEvidence.map((ev, index) => (
+                        <EvidenceItem key={index} evidence={ev} index={index} />
+                      ))}
+                      {displaySupportingEvidence.length === 0 && (
+                        <p className="text-xs text-zinc-500 font-sans italic">No supporting evidence recorded.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -471,11 +548,11 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
                     Remediation & Healing Plan
                   </h3>
                   <ActionProposal
-                    proposedRemediation={incident.proposedRemediation}
+                    proposedRemediation={displayProposedRemediation}
                     remediationStatus={derivedStatus}
                     remediationResult={derivedResult}
                     blastRadius={incident.blastRadius}
-                    alternativeHypothesis={incident.alternativeHypothesis}
+                    alternativeHypothesis={displayAlternativeHypothesis}
                   />
                 </div>
 

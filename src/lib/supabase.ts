@@ -900,3 +900,133 @@ export async function updatePostmortem(id: string, updates: any): Promise<any> {
   return data;
 }
 
+export async function createHypothesis(hypothesis: {
+  incident_id: string;
+  probable_cause: string;
+  confidence_score: number;
+  supporting_evidence: string[];
+  alternative_hypotheses: string[];
+  recommended_action: string;
+  status: string;
+}): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    throw new Error(`No authenticated user session found: ${userError?.message || 'User not logged in'}`);
+  }
+
+  // Prevent duplicate hypothesis rows for the same incident
+  const { data: existing, error: existingError } = await supabase
+    .from('hypotheses')
+    .select('*')
+    .eq('incident_id', hypothesis.incident_id)
+    .maybeSingle();
+
+  if (existingError) {
+    console.warn('[Supabase createHypothesis] Error searching for existing hypothesis:', existingError);
+  }
+
+  if (existing) {
+    console.log('[Supabase createHypothesis] Hypothesis already exists for incident:', hypothesis.incident_id);
+    return existing;
+  }
+
+  const payload = {
+    user_id: user.id,
+    incident_id: hypothesis.incident_id,
+    probable_cause: hypothesis.probable_cause,
+    confidence_score: hypothesis.confidence_score,
+    supporting_evidence: Array.isArray(hypothesis.supporting_evidence) ? hypothesis.supporting_evidence : [],
+    alternative_hypotheses: Array.isArray(hypothesis.alternative_hypotheses) ? hypothesis.alternative_hypotheses : [],
+    recommended_action: hypothesis.recommended_action,
+    status: hypothesis.status
+  };
+
+  const { data, error } = await supabase
+    .from('hypotheses')
+    .insert(payload)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('[Supabase createHypothesis Error]:', error);
+    const detailString = [
+      `Message: ${error.message}`,
+      error.code ? `Code: ${error.code}` : null,
+      error.details ? `Details: ${error.details}` : null,
+      error.hint ? `Hint: ${error.hint}` : null
+    ].filter(Boolean).join(' | ');
+    throw new Error(`Failed to create hypothesis: ${detailString}`);
+  }
+
+  return data;
+}
+
+export async function getHypothesis(incidentId: string): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data, error } = await supabase
+    .from('hypotheses')
+    .select('*')
+    .eq('incident_id', incidentId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[Supabase getHypothesis Error]:', error);
+    const detailString = [
+      `Message: ${error.message}`,
+      error.code ? `Code: ${error.code}` : null,
+      error.details ? `Details: ${error.details}` : null,
+      error.hint ? `Hint: ${error.hint}` : null
+    ].filter(Boolean).join(' | ');
+    throw new Error(`Failed to get hypothesis: ${detailString}`);
+  }
+
+  return data;
+}
+
+export async function updateHypothesis(id: string, updates: any): Promise<any> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    throw new Error(`No authenticated user session found: ${userError?.message || 'User not logged in'}`);
+  }
+
+  const payloadUpdates: any = { ...updates };
+  if ('supporting_evidence' in payloadUpdates) {
+    payloadUpdates.supporting_evidence = Array.isArray(payloadUpdates.supporting_evidence) ? payloadUpdates.supporting_evidence : [];
+  }
+  if ('alternative_hypotheses' in payloadUpdates) {
+    payloadUpdates.alternative_hypotheses = Array.isArray(payloadUpdates.alternative_hypotheses) ? payloadUpdates.alternative_hypotheses : [];
+  }
+
+  const { data, error } = await supabase
+    .from('hypotheses')
+    .update(payloadUpdates)
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('[Supabase updateHypothesis Error]:', error);
+    const detailString = [
+      `Message: ${error.message}`,
+      error.code ? `Code: ${error.code}` : null,
+      error.details ? `Details: ${error.details}` : null,
+      error.hint ? `Hint: ${error.hint}` : null
+    ].filter(Boolean).join(' | ');
+    throw new Error(`Failed to update hypothesis: ${detailString}`);
+  }
+
+  return data;
+}
+
