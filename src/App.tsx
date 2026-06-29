@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Menu, Terminal } from 'lucide-react';
 import { SignIn } from './components/SignIn';
 import { Sidebar } from './components/Sidebar';
 import { OverviewDashboard } from './components/OverviewDashboard';
@@ -97,6 +97,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'alerts' | 'timeline' | 'postmortem'>('overview');
   const [hasLoadedData, setHasLoadedData] = useState(false);
   const [isRestoringRoute, setIsRestoringRoute] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Deep cloned state for incidents, alerts, audit log, and timeline map to allow pristine resets
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -394,6 +395,7 @@ export default function App() {
   const handleSidebarScreenChange = (screen: 'dashboard' | 'incidents' | 'audit') => {
     setActiveScreen(screen);
     setActiveIncidentId(null);
+    setIsMobileSidebarOpen(false);
   };
 
   // Select incident handler
@@ -401,6 +403,7 @@ export default function App() {
     setActiveIncidentId(id);
     setActiveScreen('incident-detail');
     setActiveTab('overview');
+    setIsMobileSidebarOpen(false);
   };
 
   // Back from details handler
@@ -1128,19 +1131,50 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex">
+    <div className="h-screen w-screen flex flex-col md:flex-row overflow-hidden bg-zinc-50 font-sans">
+      {/* Mobile Header */}
+      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-zinc-950 text-white border-b border-zinc-800 shrink-0">
+        <div className="flex items-center gap-2">
+          <Terminal className="w-5 h-5 text-zinc-100" />
+          <span className="font-display text-base font-bold tracking-tight text-white">ResolveOps</span>
+        </div>
+        <button
+          onClick={() => setIsMobileSidebarOpen(true)}
+          className="p-1.5 hover:bg-zinc-900 rounded border border-zinc-800 cursor-pointer"
+          type="button"
+        >
+          <Menu className="w-5 h-5 text-zinc-300" />
+        </button>
+      </header>
+
+      {/* Backdrop */}
+      {isMobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/60 md:hidden animate-fade-in"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
       {/* Primary Sidebar Layout */}
-      <Sidebar
-        activeScreen={activeScreen}
-        setActiveScreen={handleSidebarScreenChange}
-        userEmail={userEmail}
-        onSignOut={handleSignOut}
-        systemHealth={getOverallSystemHealth()}
-      />
+      <div className={`
+        fixed inset-y-0 left-0 z-50 w-64 transform bg-zinc-950 transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:flex h-full shrink-0
+        ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+        <Sidebar
+          activeScreen={activeScreen}
+          setActiveScreen={handleSidebarScreenChange}
+          userEmail={userEmail}
+          onSignOut={handleSignOut}
+          systemHealth={getOverallSystemHealth()}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+      </div>
 
       {/* Main viewport area */}
-      <main className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto">
-        {renderMainContent()}
+      <main className="flex-1 min-w-0 overflow-y-auto p-4 md:p-8">
+        <div className="max-w-7xl mx-auto w-full">
+          {renderMainContent()}
+        </div>
       </main>
     </div>
   );

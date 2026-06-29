@@ -80,12 +80,12 @@ export const ApprovalControls: React.FC<ApprovalControlsProps> = ({
               </div>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={handleApproveClick}
                 disabled={isApproving}
-                className="flex items-center gap-1.5 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-md text-sm font-mono font-medium transition-colors border border-transparent shadow-xs disabled:opacity-50"
+                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-md text-sm font-mono font-medium transition-colors border border-transparent shadow-xs disabled:opacity-50 w-full sm:w-auto"
               >
                 {isApproving ? (
                   <>
@@ -103,7 +103,7 @@ export const ApprovalControls: React.FC<ApprovalControlsProps> = ({
                 type="button"
                 onClick={() => setShowRejectForm(true)}
                 disabled={isApproving}
-                className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-300 rounded-md text-sm font-mono font-medium transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-300 rounded-md text-sm font-mono font-medium transition-colors disabled:opacity-50 w-full sm:w-auto"
               >
                 <X className="w-4 h-4 text-zinc-500" />
                 Reject

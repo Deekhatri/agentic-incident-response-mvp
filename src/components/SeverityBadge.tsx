@@ -26,7 +26,7 @@ export const SeverityBadge: React.FC<SeverityBadgeProps> = ({ severity }) => {
   }
 
   return (
-    <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-sm text-xs font-mono border ${badgeClass}`}>
+    <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-sm text-xs font-mono border shrink-0 whitespace-nowrap ${badgeClass}`}>
       {severity}
     </span>
   );

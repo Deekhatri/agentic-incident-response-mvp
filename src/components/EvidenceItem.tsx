@@ -48,9 +48,9 @@ export const EvidenceItem: React.FC<EvidenceItemProps> = ({ evidence, index }) =
   };
 
   return (
-    <div className="flex gap-3 p-3 bg-zinc-50 border border-zinc-200/60 rounded-lg text-sm text-zinc-700">
+    <div className="flex gap-3 p-3 bg-zinc-50 border border-zinc-200/60 rounded-lg text-sm text-zinc-700 min-w-0">
       {getIcon()}
-      <div className="flex-1 leading-relaxed font-sans">
+      <div className="flex-1 leading-relaxed font-sans break-words min-w-0">
         <span className="font-mono text-zinc-400 mr-1 text-xs">[{index + 1}]</span>{' '}
         {renderHighlightedText(evidence)}
       </div>

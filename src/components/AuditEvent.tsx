@@ -53,29 +53,29 @@ export const AuditEvent: React.FC<AuditEventProps> = ({ entry }) => {
       </div>
 
       <div className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-1.5">
-          <span className="text-xs font-mono font-bold text-zinc-900 uppercase">Action:</span>
-          <span className="text-xs font-sans text-zinc-700">{entry.action}</span>
+        <div className="flex flex-wrap items-baseline gap-1.5 min-w-0">
+          <span className="text-xs font-mono font-bold text-zinc-900 uppercase shrink-0">Action:</span>
+          <span className="text-xs font-sans text-zinc-700 break-words flex-1 min-w-0">{entry.action}</span>
         </div>
 
         {entry.incidentTitle && (
-          <div className="flex flex-wrap items-baseline gap-1.5">
-            <span className="text-xxs font-mono text-zinc-400 uppercase">Target Incident:</span>
-            <span className="text-xxs font-mono text-zinc-600 bg-zinc-50 border border-zinc-200 px-1.5 py-0.5 rounded">
+          <div className="flex flex-wrap items-baseline gap-1.5 min-w-0">
+            <span className="text-xxs font-mono text-zinc-400 uppercase shrink-0">Target Incident:</span>
+            <span className="text-xxs font-mono text-zinc-600 bg-zinc-50 border border-zinc-200 px-1.5 py-0.5 rounded break-words max-w-full">
               {entry.incidentTitle}
             </span>
           </div>
         )}
 
-        <div className="pt-1.5 border-t border-zinc-50 flex items-start gap-2">
+        <div className="pt-1.5 border-t border-zinc-50 flex items-start gap-2 min-w-0">
           {isSuccess ? (
             <ShieldCheck className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
           ) : (
             <ShieldAlert className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
           )}
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 min-w-0 flex-1">
             <span className="text-[10px] font-mono font-bold text-zinc-400 block uppercase">Result payload:</span>
-            <span className="text-xs font-mono text-zinc-600 leading-relaxed block">{entry.result}</span>
+            <span className="text-xs font-mono text-zinc-600 leading-relaxed block break-words">{entry.result}</span>
           </div>
         </div>
       </div>

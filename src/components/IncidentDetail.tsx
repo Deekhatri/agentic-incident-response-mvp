@@ -375,16 +375,16 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
   return (
     <div className="space-y-6">
       {/* Back Button and Header Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-700 hover:text-zinc-900 rounded text-xs font-mono font-medium transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-700 hover:text-zinc-900 rounded text-xs font-mono font-medium transition-colors cursor-pointer w-full sm:w-auto justify-center"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to List
         </button>
-        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400">
+        <div className="flex items-center justify-center gap-2 text-xs font-mono text-zinc-400">
           <span>Active Session</span>
           <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
         </div>
@@ -393,20 +393,20 @@ export const IncidentDetail: React.FC<IncidentDetailProps> = ({
       {/* Hero Header Card */}
       <div className="bg-zinc-950 text-zinc-100 rounded-lg p-6 border border-zinc-900">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-          <div className="space-y-2 max-w-2xl">
+          <div className="space-y-2 max-w-2xl min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[10px] text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">
-                INCIDENT ID: {incident.id}
+              <span className="font-mono text-[10px] text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded truncate max-w-[200px] sm:max-w-xs inline-block align-middle" title={incident.id}>
+                INCIDENT ID: <span className="font-bold">{incident.id}</span>
               </span>
               <SeverityBadge severity={incident.severity} />
               <StatusBadge status={incident.status} />
               {getSystemHealthBadge()}
             </div>
-            <h1 className="font-display text-lg md:text-xl font-bold tracking-tight text-white leading-snug">
+            <h1 className="font-display text-lg md:text-xl font-bold tracking-tight text-white leading-snug break-words">
               {incident.title}
             </h1>
-            <p className="text-xs text-zinc-400 font-sans leading-relaxed">
-              Target microservice: <code className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 text-zinc-200 font-mono text-xxs rounded">{incident.service}</code> • Cluster Environment: <span className="font-mono text-zinc-300 font-semibold">{incident.environment}</span>
+            <p className="text-xs text-zinc-400 font-sans leading-relaxed break-words">
+              Target microservice: <code className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 text-zinc-200 font-mono text-xxs rounded break-all">{incident.service}</code> • Cluster Environment: <span className="font-mono text-zinc-300 font-semibold">{incident.environment}</span>
             </p>
           </div>
 

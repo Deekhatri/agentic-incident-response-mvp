@@ -140,7 +140,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
       )}
 
       {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Active Incidents"
           value={activeCount}
@@ -206,16 +206,16 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+            <div className="overflow-auto max-h-[350px] relative">
+              <table className="w-full text-left border-collapse text-xs min-w-[650px]">
                 <thead>
                   <tr className="bg-zinc-50 text-zinc-500 font-mono border-b border-zinc-200">
-                    <th className="py-3 px-4 font-bold">INCIDENT</th>
-                    <th className="py-3 px-4 font-bold">SERVICE</th>
-                    <th className="py-3 px-4 font-bold">SEVERITY</th>
-                    <th className="py-3 px-4 font-bold">STATUS</th>
-                    <th className="py-3 px-4 font-bold">CONFIDENCE</th>
-                    <th className="py-3 px-4 font-bold">ACTIONS</th>
+                    <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">INCIDENT</th>
+                    <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">SERVICE</th>
+                    <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">SEVERITY</th>
+                    <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">STATUS</th>
+                    <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">CONFIDENCE</th>
+                    <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">ACTIONS</th>
                   </tr>
                 </thead>
                  <tbody className="divide-y divide-zinc-200/60 font-sans">
@@ -235,26 +235,28 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                           inc.status === 'Resolved' ? 'opacity-65' : ''
                         }`}
                       >
-                        <td className="py-3.5 px-4 font-medium text-zinc-900">
-                          <div className="max-w-xs sm:max-w-sm truncate" title={inc.title}>
+                        <td className="py-3.5 px-4 font-medium text-zinc-900 max-w-[200px]">
+                          <div className="truncate" title={inc.title}>
                             {inc.title}
                           </div>
-                          <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
-                            ID: {inc.id} • Grouped: {inc.alertCount} alerts
+                          <div className="text-[10px] font-mono text-zinc-400 mt-0.5 flex items-center gap-1">
+                            <span>ID:</span>
+                            <span className="truncate max-w-[70px] inline-block font-bold text-zinc-500" title={inc.id}>{inc.id}</span>
+                            <span>• Grouped: {inc.alertCount} alerts</span>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4">
-                          <code className="text-xxs px-1.5 py-0.5 bg-zinc-100 border border-zinc-200 text-zinc-800 font-mono rounded">
+                        <td className="py-3.5 px-4 max-w-[150px]">
+                          <code className="text-[10px] px-1.5 py-0.5 bg-zinc-100 border border-zinc-200 text-zinc-800 font-mono rounded truncate inline-block max-w-full align-middle" title={inc.service}>
                             {inc.service}
                           </code>
                           <span className="text-xxs font-mono text-zinc-400 block mt-1">
                             Env: {inc.environment}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-3.5 px-4 shrink-0">
                           <SeverityBadge severity={inc.severity} />
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-3.5 px-4 shrink-0">
                           <StatusBadge status={inc.status} />
                         </td>
                         <td className="py-3.5 px-4">
@@ -264,7 +266,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                           <button
                             type="button"
                             onClick={() => onSelectIncident(inc.id)}
-                            className="px-2 py-1 bg-zinc-100 border border-zinc-200 hover:bg-zinc-900 hover:text-white rounded text-[10px] font-mono font-medium transition-all cursor-pointer"
+                            className="px-2 py-1 bg-zinc-100 border border-zinc-200 hover:bg-zinc-900 hover:text-white rounded text-[10px] font-mono font-medium transition-all cursor-pointer whitespace-nowrap"
                           >
                             Investigate
                           </button>

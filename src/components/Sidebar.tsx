@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Activity, ShieldAlert, FileText, ClipboardList, LogOut, Terminal, Layers } from 'lucide-react';
+import { Activity, ShieldAlert, FileText, ClipboardList, LogOut, Terminal, Layers, X } from 'lucide-react';
 
 interface SidebarProps {
   activeScreen: 'dashboard' | 'incidents' | 'audit' | 'incident-detail';
@@ -12,6 +12,7 @@ interface SidebarProps {
   userEmail: string;
   onSignOut: () => void;
   systemHealth: 'Healthy' | 'Degraded' | 'Recovering';
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -19,7 +20,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveScreen,
   userEmail,
   onSignOut,
-  systemHealth
+  systemHealth,
+  onCloseMobile
 }) => {
   const getHealthBadge = () => {
     switch (systemHealth) {
@@ -48,23 +50,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <div className="w-64 bg-zinc-950 text-zinc-100 flex flex-col justify-between shrink-0 border-r border-zinc-800">
-      <div className="flex flex-col flex-1">
+    <div className="w-full md:w-64 bg-zinc-950 text-zinc-100 flex flex-col justify-between shrink-0 border-r border-zinc-800 h-full overflow-hidden">
+      <div className="flex flex-col flex-1 overflow-hidden">
         {/* Branding Title */}
-        <div className="p-6 border-b border-zinc-900 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 bg-zinc-900 border border-zinc-800 rounded-md text-zinc-200">
+        <div className="p-6 border-b border-zinc-900 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-1.5 bg-zinc-900 border border-zinc-800 rounded-md text-zinc-200 shrink-0">
               <Terminal className="w-5 h-5 text-zinc-100" />
             </div>
-            <div>
-              <span className="font-display text-base font-bold tracking-tight text-white block">ResolveOps</span>
-              <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest block mt-0.5">Autonomous MVP</span>
+            <div className="min-w-0">
+              <span className="font-display text-base font-bold tracking-tight text-white block truncate">ResolveOps</span>
+              <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest block mt-0.5 truncate">Autonomous MVP</span>
             </div>
           </div>
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="md:hidden p-1.5 hover:bg-zinc-900 rounded text-zinc-400 hover:text-zinc-200 border border-zinc-800"
+              type="button"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Navigation Items */}
-        <nav className="p-4 space-y-1.5 flex-1">
+        <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto">
           <button
             type="button"
             onClick={() => setActiveScreen('dashboard')}

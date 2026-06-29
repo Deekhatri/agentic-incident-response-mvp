@@ -155,18 +155,18 @@ export const IncidentsList: React.FC<IncidentsListProps> = ({ incidents, onSelec
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+          <div className="overflow-auto max-h-[580px] relative">
+            <table className="w-full text-left border-collapse text-xs min-w-[800px]">
               <thead>
                 <tr className="bg-zinc-50 text-zinc-500 font-mono border-b border-zinc-200">
-                  <th className="py-3 px-4 font-bold">INCIDENT</th>
-                  <th className="py-3 px-4 font-bold">SERVICE & ENVIRONMENT</th>
-                  <th className="py-3 px-4 font-bold">SEVERITY</th>
-                  <th className="py-3 px-4 font-bold">STATUS</th>
-                  <th className="py-3 px-4 font-bold text-center">ALERTS GROUPED</th>
-                  <th className="py-3 px-4 font-bold">RCA CONFIDENCE</th>
-                  <th className="py-3 px-4 font-bold">CREATED TIME</th>
-                  <th className="py-3 px-4 font-bold text-right">ACTION</th>
+                  <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">INCIDENT</th>
+                  <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">SERVICE & ENVIRONMENT</th>
+                  <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">SEVERITY</th>
+                  <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">STATUS</th>
+                  <th className="py-3 px-4 font-bold text-center sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">ALERTS GROUPED</th>
+                  <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">RCA CONFIDENCE</th>
+                  <th className="py-3 px-4 font-bold sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">CREATED TIME</th>
+                  <th className="py-3 px-4 font-bold text-right sticky top-0 bg-zinc-50 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200/60 font-sans">
@@ -177,26 +177,28 @@ export const IncidentsList: React.FC<IncidentsListProps> = ({ incidents, onSelec
                       inc.status === 'Resolved' ? 'opacity-65' : ''
                     }`}
                   >
-                    <td className="py-4 px-4">
-                      <div className="font-semibold text-zinc-900 font-sans max-w-xs md:max-w-sm truncate" title={inc.title}>
+                    <td className="py-4 px-4 min-w-[220px]">
+                      <div className="font-semibold text-zinc-900 font-sans max-w-[240px] truncate" title={inc.title}>
                         {inc.title}
                       </div>
-                      <div className="text-[10px] font-mono text-zinc-400 mt-1">
-                        ID: {inc.id} • Noise Suppression: {inc.noiseReduction}
+                      <div className="text-[10px] font-mono text-zinc-400 mt-1 flex items-center gap-1">
+                        <span>ID:</span>
+                        <span className="truncate max-w-[80px] inline-block font-bold text-zinc-500" title={inc.id}>{inc.id}</span>
+                        <span>• Noise Suppression: {inc.noiseReduction}</span>
                       </div>
                     </td>
-                    <td className="py-4 px-4 font-mono">
-                      <code className="text-xxs px-1.5 py-0.5 bg-zinc-100 border border-zinc-200 text-zinc-800 rounded">
+                    <td className="py-4 px-4 font-mono min-w-[160px]">
+                      <code className="text-[10px] px-1.5 py-0.5 bg-zinc-100 border border-zinc-200 text-zinc-800 rounded truncate max-w-[130px] inline-block align-middle" title={inc.service}>
                         {inc.service}
                       </code>
                       <div className="text-[10px] text-zinc-500 mt-1.5 font-sans">
                         Env: <span className="font-semibold font-mono text-zinc-700">{inc.environment}</span>
                       </div>
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-4 shrink-0">
                       <SeverityBadge severity={inc.severity} />
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-4 shrink-0">
                       <StatusBadge status={inc.status} />
                     </td>
                     <td className="py-4 px-4 font-mono font-medium text-zinc-800 text-center text-sm">
@@ -212,7 +214,7 @@ export const IncidentsList: React.FC<IncidentsListProps> = ({ incidents, onSelec
                       <button
                         type="button"
                         onClick={() => onSelectIncident(inc.id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-[11px] font-mono font-semibold transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-[11px] font-mono font-semibold transition-colors cursor-pointer whitespace-nowrap"
                       >
                         Investigate
                         <ArrowRight className="w-3 h-3" />

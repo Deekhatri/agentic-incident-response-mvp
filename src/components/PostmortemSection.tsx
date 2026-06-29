@@ -38,7 +38,7 @@ export const PostmortemSection: React.FC<PostmortemSectionProps> = ({ postmortem
               Executive Summary
             </h4>
           </div>
-          <p className="text-sm text-zinc-600 leading-relaxed font-sans">{postmortem.summary}</p>
+          <p className="text-sm text-zinc-600 leading-relaxed font-sans break-words">{postmortem.summary}</p>
         </div>
 
         <div className="bg-white p-4 rounded-lg border border-zinc-200 shadow-xxs">
@@ -48,7 +48,7 @@ export const PostmortemSection: React.FC<PostmortemSectionProps> = ({ postmortem
               Customer Impact
             </h4>
           </div>
-          <p className="text-sm text-zinc-600 leading-relaxed font-sans">{postmortem.customerImpact}</p>
+          <p className="text-sm text-zinc-600 leading-relaxed font-sans break-words">{postmortem.customerImpact}</p>
         </div>
       </div>
 
@@ -61,7 +61,7 @@ export const PostmortemSection: React.FC<PostmortemSectionProps> = ({ postmortem
               Root Cause
             </h4>
           </div>
-          <p className="text-sm text-zinc-600 leading-relaxed font-sans font-mono bg-zinc-50 p-2.5 border border-zinc-200 rounded text-xs">
+          <p className="text-sm text-zinc-600 leading-relaxed font-sans font-mono bg-zinc-50 p-2.5 border border-zinc-200 rounded text-xs break-words">
             {postmortem.rootCause}
           </p>
         </div>
@@ -73,7 +73,7 @@ export const PostmortemSection: React.FC<PostmortemSectionProps> = ({ postmortem
               Resolution Action
             </h4>
           </div>
-          <p className="text-sm text-zinc-600 leading-relaxed font-sans font-mono bg-green-50/20 p-2.5 border border-green-200/50 rounded text-xs">
+          <p className="text-sm text-zinc-600 leading-relaxed font-sans font-mono bg-green-50/20 p-2.5 border border-green-200/50 rounded text-xs break-words">
             {postmortem.resolution}
           </p>
         </div>
@@ -88,7 +88,7 @@ export const PostmortemSection: React.FC<PostmortemSectionProps> = ({ postmortem
               Detection Mechanisms
             </h4>
           </div>
-          <p className="text-sm text-zinc-600 leading-relaxed font-sans">{postmortem.detection}</p>
+          <p className="text-sm text-zinc-600 leading-relaxed font-sans break-words">{postmortem.detection}</p>
         </div>
 
         <div className="border-t border-zinc-100 pt-4">
@@ -102,7 +102,7 @@ export const PostmortemSection: React.FC<PostmortemSectionProps> = ({ postmortem
             {postmortem.timeline.map((line, idx) => (
               <div key={idx} className="flex gap-2.5 items-start p-2 hover:bg-zinc-50 border border-transparent hover:border-zinc-100 rounded">
                 <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
-                <span className="text-zinc-600 leading-relaxed">{line}</span>
+                <span className="text-zinc-600 leading-relaxed break-words">{line}</span>
               </div>
             ))}
           </div>
@@ -119,7 +119,7 @@ export const PostmortemSection: React.FC<PostmortemSectionProps> = ({ postmortem
             {postmortem.contributingFactors.map((factor, idx) => (
               <li key={idx} className="flex gap-2 items-start font-sans">
                 <span className="text-zinc-400 font-mono mt-0.5">•</span>
-                <span>{factor}</span>
+                <span className="break-words">{factor}</span>
               </li>
             ))}
           </ul>
@@ -133,7 +133,7 @@ export const PostmortemSection: React.FC<PostmortemSectionProps> = ({ postmortem
             {postmortem.followUpActions.map((action, idx) => (
               <li key={idx} className="flex gap-2 items-start font-sans">
                 <span className="text-green-500 font-mono mt-0.5">[✓]</span>
-                <span>{action}</span>
+                <span className="break-words">{action}</span>
               </li>
             ))}
           </ul>

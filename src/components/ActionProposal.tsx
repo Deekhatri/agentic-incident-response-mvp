@@ -32,14 +32,14 @@ export const ActionProposal: React.FC<ActionProposalProps> = ({
             Primary Remediation Proposal
           </h4>
         </div>
-        <p className="text-sm text-zinc-700 bg-white p-3 border border-zinc-200/60 rounded-md font-mono leading-relaxed">
+        <p className="text-sm text-zinc-700 bg-white p-3 border border-zinc-200/60 rounded-md font-mono leading-relaxed break-words min-w-0">
           {proposedRemediation}
         </p>
 
         {remediationResult && (
           <div className="mt-3 p-3 bg-green-50/50 border border-green-200/60 rounded-md text-xs text-green-800">
             <span className="font-mono font-bold block mb-1">EXECUTION REPORT:</span>
-            <span className="font-mono">{remediationResult}</span>
+            <span className="font-mono break-words">{remediationResult}</span>
           </div>
         )}
       </div>
@@ -53,7 +53,7 @@ export const ActionProposal: React.FC<ActionProposalProps> = ({
               Blast Radius Estimate
             </h4>
           </div>
-          <p className="text-xs text-zinc-600 font-sans leading-relaxed">
+          <p className="text-xs text-zinc-600 font-sans leading-relaxed break-words">
             {blastRadius}
           </p>
         </div>
@@ -66,7 +66,7 @@ export const ActionProposal: React.FC<ActionProposalProps> = ({
               Alternative Hypothesis
             </h4>
           </div>
-          <p className="text-xs text-zinc-600 font-sans leading-relaxed">
+          <p className="text-xs text-zinc-600 font-sans leading-relaxed break-words">
             {alternativeHypothesis}
           </p>
         </div>
