@@ -139,26 +139,25 @@ A postmortem report is generated
 
 ---
 
-## Screenshots
+## Product Screenshots
 
-Add the following screenshots to `docs/screenshots/`:
+### Operations Dashboard
 
-1. `dashboard.png`
-2. `incident-analysis.png`
-3. `remediation-success.png`
-4. `postmortem.png`
+The dashboard provides a consolidated view of active incidents, alert volume, noise reduction, pending actions, service health, and backend connectivity.
 
-Once those files are uploaded, add them here using:
+![ResolveOps Operations Dashboard](docs/screenshots/dashboard.png)
 
-```md
-![ResolveOps Dashboard](docs/screenshots/dashboard.png)
+### Incident Analysis and Remediation
 
-![Root-Cause Analysis](docs/screenshots/incident-analysis.png)
+The incident workspace presents grouped alerts, the probable root cause, supporting evidence, alternative hypotheses, and the human-approved remediation result.
 
-![Successful Remediation](docs/screenshots/remediation-success.png)
+![ResolveOps Incident Analysis](docs/screenshots/incident-analysis.png)
 
-![Generated Postmortem](docs/screenshots/postmortem.png)
-```
+### Generated Postmortem
+
+After remediation, ResolveOps generates a structured postmortem containing impact, root cause, resolution, detection mechanisms, and the full event chronology.
+
+![ResolveOps Postmortem](docs/screenshots/postmortem.png)
 
 ---
 
