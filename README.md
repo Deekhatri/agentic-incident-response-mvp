@@ -1,82 +1,345 @@
-# ResolveOps - Autonomous Incident Response MVP
+# ResolveOps
 
-ResolveOps is an agentic, self-healing incident response platform designed for high-velocity engineering teams. It ingests cluster telemetry, aggregates raw alerts into single correlated incidents (reducing noise budgets up to 95%), compiles autonomous root-cause diagnoses, and proposes human-in-the-loop self-healing proposals.
+### Agentic Incident Response MVP
 
-This repository contains **Phase 1 of ResolveOps**, a visually rich, fully interactive frontend-only working prototype built with **React 19, TypeScript, and Tailwind CSS v4**.
+ResolveOps is a full-stack incident-response platform that converts alert noise into structured incidents, probable root-cause hypotheses, human-approved remediation actions, and postmortem reports.
 
----
+The project demonstrates how an engineering team could move from receiving multiple infrastructure alerts to understanding and resolving an incident through a single operational workflow.
 
-## 🎨 Visual Identity & Architecture
+[View Live Demo](https://agentic-incident-response-mvp.vercel.app)
 
-ResolveOps is designed with a restrained enterprise infrastructure style to match high-fidelity engineering systems like Datadog, PagerDuty, or Kubernetes dashboards:
-- **Dense, Highly Readable Typography**: Standardized on **Inter** for UI controls, **Space Grotesk** for display headers, and **JetBrains Mono** for environment parameters, pods, logs, and codes.
-- **Enterprise Dark Sidebar Layout**: Dark sidebar frame contrasting with a clean, light workspace container.
-- **Micro-interactions & Real-time Simulations**: Custom status badges, confidence meters, inline SVG distribution indicators, and animated live-logs streamers.
+> Select **Explore Demo Without Saving** to experience the product without creating an account.
 
 ---
 
-## 🔄 Interactive Demo Workflows
+## The Problem
 
-### 1. The Core Checkout 5xx Incident
-- **The Context**: A deployment of version `v2.4.8` of the `checkout-api` microservice on Staging lacks the critical environment variable `PAYMENT_GATEWAY_URL`.
-- **The Storm**: The cluster is flooded with 24 related alerts. ResolveOps correlates them into **1 unified SEV-1 incident**, suppressing telemetry noise by **95.8%**.
-- **The Investigation**: Inspecting the incident reveals:
-  - Agent-generated summary logs.
-  - Core Root-Cause analysis (92% confidence score).
-  - Dynamic supporting evidence parsed from pod stdout.
-  - Detailed raw alerts tables with full filter capabilities.
-- **Human-in-the-Loop Healing**:
-  - Click **Approve Proposal**.
-  - Watch the live simulation: Status updates to *Remediating*, showing container-scale reboots, and rolling out healthy replicas.
-  - After 2 seconds, the action completes successfully. The incident resolves, cluster health registers as *Recovering*, and an audit ledger entry is cryptographically recorded.
-- **Automated Postmortem Generation**: Once the service is healed, click **Generate Postmortem Report** to instantly synthesize timelines, root-cause diagnostics, and preventive measures.
+Modern engineering teams receive large volumes of infrastructure alerts, but only a small percentage require immediate action.
 
-### 2. Interactive Synthetic Alert Storm Generator
-- From the primary **Overview Dashboard**, click the **Generate Test Incident** button.
-- Witness a simulated live-stream alert storm in progress: RabbitMQ queue metrics and ReplicaSet collapsible events flood the console.
-- Watch the ResolveOps agent correlation pipeline aggregate 15 incoming alerts, reduce noise by **93.3%**, and output a new **SEV-2 incident** complete with root-cause analysis, primary remediation blueprints, and audit events.
-- Reset the entire playground at any time via **Reset Test Demo** to run the simulations again.
+During a real incident, engineers often need to:
+
+* Review multiple alerts
+* Switch between monitoring tools
+* Inspect logs and service health
+* Identify recent deployments
+* Form a root-cause hypothesis
+* Decide whether a remediation action is safe
+* Document the incident afterward
+
+This creates alert fatigue, slows incident resolution, and increases operational pressure on on-call engineers.
+
+ResolveOps explores how these steps can be consolidated into one structured incident-response workflow.
 
 ---
 
-## 🛠️ Technology Stack
+## Target Users
 
-- **Frontend**: React 19 (functional components, hooks)
-- **Language**: TypeScript (strict type interfaces)
-- **Styling**: Tailwind CSS v4 (inline utilities, customized `@theme` bindings)
-- **Bundler**: Vite
-- **Icons**: Lucide React
-- **Local State Management**: React Context & local hook states
+ResolveOps is designed for:
 
----
+* Site Reliability Engineers
+* Platform Engineers
+* DevOps Engineers
+* Engineering Managers
+* Mid-sized engineering teams operating cloud-native infrastructure
 
-## 🚀 Local Setup & Verification
-
-Ensure you have Node.js installed on your machine.
-
-1. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-2. **Launch development server**:
-   ```bash
-   npm run dev
-   ```
-   Open your browser and navigate to `http://localhost:3000`.
-
-3. **Verify compilation & types**:
-   ```bash
-   npm run lint
-   ```
-   and
-   ```bash
-   npm run build
-   ```
+The primary user is an on-call engineer responsible for investigating and resolving service incidents.
 
 ---
 
-## ⚠️ Phase 1 Frontend-Only Limitations
+## Core Workflow
 
-- **State Persistence**: State is maintained using memory-resident React state hooks. Refreshing or hard reloading will restore the dashboard to its initial active SEV-1 alert conditions.
-- **Integration Layer**: No external API, authentication provider, database connection, or container orchestration SDKs are loaded in this prototype. All diagnostic logs and alert payloads are mocked to guarantee high availability and sandbox security.
+```text
+Multiple infrastructure alerts are received
+                ↓
+Related alerts are grouped into one incident
+                ↓
+A root-cause hypothesis is generated
+                ↓
+Supporting evidence and alternatives are presented
+                ↓
+A remediation action is proposed
+                ↓
+The engineer approves or rejects the action
+                ↓
+A simulated remediation is executed
+                ↓
+The result is recorded in the audit trail
+                ↓
+A postmortem report is generated
+```
+
+---
+
+## Key Capabilities
+
+### Incident Management
+
+* Persistent incident creation
+* Incident severity and health tracking
+* Dedicated incident detail pages
+* Refresh-safe incident URLs
+* User-specific incident access
+
+### Alert Aggregation
+
+* Twenty-four synthetic alerts generated per test incident
+* Alerts grouped into one operational incident
+* Alert types include:
+
+  * HTTP 5xx errors
+  * CrashLoopBackOff events
+  * Readiness-probe failures
+  * Missing environment configuration
+  * Service degradation
+
+### Root-Cause Hypothesis
+
+* Probable root cause
+* Confidence score
+* Supporting evidence
+* Alternative hypotheses
+* Recommended remediation action
+
+### Human-in-the-Loop Remediation
+
+* Remediation proposal review
+* Approve or reject decision
+* Mandatory rejection reason
+* Simulated action execution
+* Persistent execution result
+* Updated incident health status
+
+### Audit Trail
+
+* System actions
+* Agent actions
+* Human decisions
+* Remediation outcomes
+* Chronological incident timeline
+
+### Postmortem Generation
+
+* Incident summary
+* Customer impact
+* Detection details
+* Root cause
+* Resolution
+* Incident timeline
+* Contributing factors
+* Follow-up actions
+
+### Account and Data Security
+
+* Supabase email and password authentication
+* Email verification
+* Password recovery
+* Persistent sessions
+* Row Level Security
+* User-specific data isolation
+
+---
+
+## Screenshots
+
+Add the following screenshots to `docs/screenshots/`:
+
+1. `dashboard.png`
+2. `incident-analysis.png`
+3. `remediation-success.png`
+4. `postmortem.png`
+
+Once those files are uploaded, add them here using:
+
+```md
+![ResolveOps Dashboard](docs/screenshots/dashboard.png)
+
+![Root-Cause Analysis](docs/screenshots/incident-analysis.png)
+
+![Successful Remediation](docs/screenshots/remediation-success.png)
+
+![Generated Postmortem](docs/screenshots/postmortem.png)
+```
+
+---
+
+## Product Decisions and Trade-offs
+
+### Built on Existing Incident Signals
+
+The MVP does not attempt to replace a full observability platform. It focuses on the response workflow after alerts have been generated.
+
+This keeps the product centred on incident understanding, decision-making, remediation, and learning.
+
+### Deterministic Test Incidents
+
+The current MVP uses structured synthetic incident data rather than production telemetry.
+
+This makes the workflow safe, repeatable, and suitable for product validation without exposing customer infrastructure data.
+
+### Human Approval Before Remediation
+
+All remediation proposals require an explicit human decision.
+
+The system can prepare and simulate an action, but it does not independently make irreversible infrastructure changes.
+
+### Simulated Infrastructure Execution
+
+Remediation is simulated rather than connected to a production Kubernetes cluster.
+
+This validates the product workflow while avoiding the security risks associated with arbitrary infrastructure access.
+
+### Supabase as the Managed Backend
+
+Supabase was selected for:
+
+* PostgreSQL data storage
+* Authentication
+* Row Level Security
+* Managed APIs
+* Fast MVP development
+
+### Modular Persistence
+
+Incidents, alerts, hypotheses, audit events, approvals, executions, and postmortems are stored as separate entities.
+
+This supports auditability and future product expansion.
+
+---
+
+## Technology Stack
+
+### Frontend
+
+* React
+* TypeScript
+* Vite
+* Responsive CSS
+* Lucide icons
+
+### Backend
+
+* Supabase
+* PostgreSQL
+* Supabase Authentication
+* Row Level Security
+
+### Deployment and Version Control
+
+* GitHub
+* Vercel
+* GitHub Releases
+
+### Development Approach
+
+* AI-assisted product development
+* Incremental backend integration
+* Manual workflow and security testing
+
+---
+
+## Data Model
+
+The MVP currently includes:
+
+```text
+profiles
+incidents
+alerts
+hypotheses
+audit_events
+action_proposals
+approvals
+action_executions
+postmortems
+```
+
+Every user-owned record is protected through Supabase Row Level Security policies.
+
+---
+
+## Local Setup
+
+### Prerequisites
+
+* Node.js
+* npm
+* A Supabase project
+
+### Installation
+
+```bash
+git clone YOUR_REPOSITORY_URL
+cd agentic-incident-response-mvp
+npm install
+```
+
+Create a local environment file:
+
+```bash
+cp .env.example .env.local
+```
+
+Add:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+```
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+Create a production build:
+
+```bash
+npm run build
+```
+
+---
+
+## Current Limitations
+
+* Uses synthetic telemetry
+* Does not ingest production OpenTelemetry data
+* Does not connect to Alertmanager, Datadog, or CloudWatch
+* Root-cause hypotheses are currently generated from deterministic test data
+* Remediation execution is simulated
+* No real Kubernetes commands are executed
+* No production alert correlation engine
+* No enterprise SSO or team-management functionality
+* Not designed for production incident-response use
+
+---
+
+## Future Direction
+
+Potential future development includes:
+
+* Alertmanager webhook ingestion
+* OpenTelemetry integration
+* AI-generated root-cause analysis
+* Similar-incident retrieval
+* Sandboxed Kubernetes remediation
+* Policy-based action controls
+* Slack and PagerDuty integrations
+* Jira or Linear action-item creation
+* Team workspaces and role management
+
+---
+
+## Release
+
+Current stable release:
+
+**ResolveOps MVP v0.1.0**
+
+---
+
+## Disclaimer
+
+ResolveOps is an MVP and portfolio demonstration built using synthetic incident data and simulated remediation actions.
+
+It is not intended for production infrastructure management, autonomous incident response, security monitoring, or real-world operational decision-making.
